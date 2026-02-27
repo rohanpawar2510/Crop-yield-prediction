@@ -31,8 +31,10 @@ let pieChart   = null;
 
 // ─── Common chart defaults ────────────────────────────────────────────────────
 
-Chart.defaults.font.family = "'Segoe UI', 'Roboto', sans-serif";
-Chart.defaults.color = '#4a4a4a';
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = "'Segoe UI', 'Roboto', sans-serif";
+  Chart.defaults.color = '#4a4a4a';
+}
 
 // ─── Bar Chart — Yield Comparison ────────────────────────────────────────────
 
@@ -41,6 +43,10 @@ Chart.defaults.color = '#4a4a4a';
  * @param {{ labels: string[], data: number[] }} yieldData
  */
 export function renderBarChart(yieldData) {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not loaded yet');
+    return;
+  }
   const ctx = document.getElementById('barChart');
   if (!ctx) return;
 
@@ -104,6 +110,10 @@ export function renderBarChart(yieldData) {
  * @param {{ n: number, p: number, k: number, ph: number }} nutrients
  */
 export function renderRadarChart(nutrients) {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not loaded yet');
+    return;
+  }
   const ctx = document.getElementById('radarChart');
   if (!ctx) return;
 
@@ -192,6 +202,10 @@ export function renderRadarChart(nutrients) {
  * @param {{ labels: string[], data: number[] }} recData
  */
 export function renderPieChart(recData) {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not loaded yet');
+    return;
+  }
   const ctx = document.getElementById('pieChart');
   if (!ctx) return;
 
