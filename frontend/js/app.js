@@ -97,8 +97,16 @@ form.addEventListener('submit', async (e) => {
     const imageFile = plantImageInput.files[0] || null;
     const disease = imageFile ? await detectDisease(imageFile) : null;
 
-    displayResults({ prediction, weather, disease, recommendations, formData });
-    renderCharts({ prediction, formData, recommendations });
+    try {
+      displayResults({ prediction, weather, disease, recommendations, formData });
+    } catch (displayErr) {
+      console.warn('Display results failed:', displayErr);
+    }
+    try {
+      renderCharts({ prediction, formData, recommendations });
+    } catch (chartErr) {
+      console.warn('Chart rendering failed:', chartErr);
+    }
 
     resultsSection.hidden = false;
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
