@@ -225,9 +225,14 @@
 
   <script>
     // ═══════════════════════════════════════════════════════════════════════
-    // ALL-IN-ONE SCRIPT — No modules, no imports, no API calls
-    // Everything runs inline with mock data for instant results
+    // ALL-IN-ONE SCRIPT — Works standalone (mock) or with the FastAPI backend
     // ═══════════════════════════════════════════════════════════════════════
+
+    // Backend URL — change to match your server address if needed.
+    var API_BASE = 'http://localhost:8000';
+
+    // Set to true to call the real FastAPI backend; false uses mock data.
+    var USE_API = false;
 
     var barChartInstance = null;
     var radarChartInstance = null;
@@ -280,24 +285,112 @@
       hideError();
       showLoading();
 
-      // Simulate brief processing delay then show results
-      setTimeout(function() {
-        try {
-          displayResults(location, nitrogen, phosphorus, potassium, ph);
-          renderAllCharts(nitrogen, phosphorus, potassium, ph);
-          document.getElementById('resultsSection').style.display = 'block';
-          document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+      var formPayload = { location: location, nitrogen: nitrogen, phosphorus: phosphorus, potassium: potassium, ph: ph };
+      var imageFile = plantImageInput.files[0] || null;
 
-          // Show disease section if image was uploaded
-          var hasImage = plantImageInput.files.length > 0;
-          document.getElementById('diseaseSection').style.display = hasImage ? 'block' : 'none';
-        } catch (err) {
-          console.error('Error:', err);
-          showError('Something went wrong: ' + err.message);
-        }
-        hideLoading();
-      }, 500);
+      if (USE_API) {
+        // ── Real API calls ──────────────────────────────────────────────
+        var predictReq = fetch(API_BASE + '/api/predict', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formPayload)
+        }).then(function(r) { return r.json(); });
+
+        var weatherReq = fetch(API_BASE + '/api/weather?location=' + encodeURIComponent(location))
+          .then(function(r) { return r.json(); });
+
+        var recommendReq = fetch(API_BASE + '/api/recommend', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formPayload)
+        }).then(function(r) { return r.json(); });
+
+        var diseaseReq = imageFile
+          ? (function() {
+              var fd = new FormData(); fd.append('image', imageFile);
+              return fetch(API_BASE + '/api/detect-disease', { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); });
+            })()
+          : Promise.resolve(null);
+
+        Promise.all([predictReq, weatherReq, recommendReq, diseaseReq])
+          .then(function(results) {
+            var prediction = results[0], weather = results[1], recommendations = results[2], disease = results[3];
+            try {
+              displayApiResults(prediction, weather, disease, recommendations, location, formPayload);
+              renderAllCharts(nitrogen, phosphorus, potassium, ph);
+              document.getElementById('resultsSection').style.display = 'block';
+              document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+              document.getElementById('diseaseSection').style.display = disease ? 'block' : 'none';
+            } catch (err) { console.error('Display error:', err); showError('Display error: ' + err.message); }
+            hideLoading();
+          })
+          .catch(function(err) {
+            console.error('API error:', err);
+            showError('API error: ' + err.message + '. Check that the backend is running at ' + API_BASE);
+            hideLoading();
+          });
+      } else {
+        // ── Mock data (default) ─────────────────────────────────────────
+        setTimeout(function() {
+          try {
+            displayResults(location, nitrogen, phosphorus, potassium, ph);
+            renderAllCharts(nitrogen, phosphorus, potassium, ph);
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+
+            // Show disease section if image was uploaded
+            var hasImage = plantImageInput.files.length > 0;
+            document.getElementById('diseaseSection').style.display = hasImage ? 'block' : 'none';
+          } catch (err) {
+            console.error('Error:', err);
+            showError('Something went wrong: ' + err.message);
+          }
+          hideLoading();
+        }, 500);
+      }
     });
+
+    // ─── Display results from API response ────────────────────────────────
+    function displayApiResults(prediction, weather, disease, recommendations, location, formData) {
+      // Yield
+      document.getElementById('yieldValue').textContent = prediction.yield !== undefined ? prediction.yield : '—';
+      document.getElementById('yieldUnit').textContent = prediction.unit || 'tons/hectare';
+      document.getElementById('yieldCrop').textContent = prediction.crop || '—';
+      document.getElementById('yieldConfidence').textContent = prediction.confidence ? prediction.confidence + '% confidence' : '';
+
+      // Weather
+      document.getElementById('weatherLocation').textContent = (weather && weather.location) || location;
+      document.getElementById('weatherIcon').textContent = (weather && weather.icon) || '🌤️';
+      document.getElementById('weatherTemp').textContent = weather ? weather.temperature + '°C' : '—';
+      document.getElementById('weatherDesc').textContent = (weather && weather.description) || '';
+      document.getElementById('weatherHumidity').textContent = weather ? weather.humidity + '%' : '—';
+      document.getElementById('weatherRainfall').textContent = weather ? weather.rainfall + ' mm' : '—';
+      document.getElementById('weatherWind').textContent = weather ? weather.wind_speed + ' km/h' : '—';
+
+      // Disease
+      if (disease) {
+        document.getElementById('diseaseName').textContent = disease.disease || '—';
+        document.getElementById('diseaseSeverity').textContent = disease.severity || '—';
+        document.getElementById('diseaseAffected').textContent = disease.affected_area || '—';
+        document.getElementById('diseaseConfidenceBar').style.width = disease.confidence + '%';
+        document.getElementById('diseaseConfidenceVal').textContent = disease.confidence + '%';
+        document.getElementById('diseaseTreatment').textContent = disease.treatment || '—';
+      }
+
+      // Recommendations
+      var rec = (recommendations && recommendations.fertilizer) || {};
+      document.getElementById('recFertilizer').textContent = (rec.primary || '') + ' — ' + (rec.amount || '');
+      document.getElementById('recSchedule').textContent = rec.schedule || '';
+      document.getElementById('recRotation').textContent = (recommendations && recommendations.crop_rotation) || '';
+      document.getElementById('recIrrigation').textContent = (recommendations && recommendations.irrigation) || '';
+      document.getElementById('recPest').textContent = (recommendations && recommendations.pest_management) || '';
+      document.getElementById('recGeneral').textContent = (recommendations && recommendations.general) || '';
+
+      var altList = document.getElementById('recAlternatives');
+      altList.innerHTML = '';
+      ((rec.alternatives) || []).forEach(function(alt) {
+        var li = document.createElement('li'); li.textContent = alt; altList.appendChild(li);
+      });
+    }
 
     // ─── Display results with mock data ───────────────────────────────────
     function displayResults(location, n, p, k, ph) {
