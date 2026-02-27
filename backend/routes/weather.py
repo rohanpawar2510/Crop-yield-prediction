@@ -20,7 +20,7 @@ def weather(
     **Query parameter**:
     - `location` — city or region name
 
-    **Response** fields match the frontend `MOCK_WEATHER` constant.
-    Phase 3 will wire this up to the OpenWeather API.
+    **Response** fields include live data from the OpenWeather API.
+    Falls back to mock data with a console warning if the API call fails.
     """
     return get_weather(location)
