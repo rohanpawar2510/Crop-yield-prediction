@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌾 Smart Agriculture — Crop Yield Prediction</title>
+  <meta name="description" content="AI-powered crop yield prediction, disease detection, and smart farming recommendations." />
+
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="site-header" role="banner">
+    <div class="logo" aria-hidden="true">🌾</div>
+    <h1>Smart Agriculture Dashboard</h1>
+    <p>AI-powered Crop Yield Prediction &amp; Smart Farming Insights</p>
+  </header>
+
+  <!-- ── Loading Overlay ────────────────────────────────────────────────────── -->
+  <div id="loadingOverlay" class="loading-overlay" hidden aria-live="polite" role="status">
+    <div class="spinner" aria-hidden="true"></div>
+    <p>Analysing your data… Please wait</p>
+  </div>
+
+  <main id="main">
+
+    <!-- ── Error Banner ─────────────────────────────────────────────────────── -->
+    <div id="errorBanner" class="error-banner" hidden role="alert" aria-atomic="true">
+      <span class="error-icon" aria-hidden="true">⚠️</span>
+      <p id="errorMessage">An error occurred.</p>
+      <button id="closeError" aria-label="Close error message">✕</button>
+    </div>
+
+    <!-- ── Input Form ───────────────────────────────────────────────────────── -->
+    <section class="input-section" aria-labelledby="formHeading">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" aria-hidden="true">📝</span>
+          <h2 id="formHeading">Enter Farm Details</h2>
+        </div>
+
+        <form id="predictionForm" novalidate aria-label="Crop prediction input form">
+          <div class="form-grid">
+
+            <!-- Location -->
+            <div class="form-group full-width">
+              <label for="location"
+                     data-tooltip="Enter your city, village, or region name. E.g., Pune, Maharashtra">
+                📍 Location (City / Region)
+              </label>
+              <input
+                type="text"
+                id="location"
+                name="location"
+                placeholder="e.g., Pune, Maharashtra"
+                autocomplete="off"
+                required
+                aria-required="true"
+                aria-describedby="locationHelp"
+              />
+              <span class="help-text" id="locationHelp">ℹ️ Enter the name of your nearest town or city</span>
+            </div>
+
+            <!-- Nitrogen -->
+            <div class="form-group">
+              <label for="nitrogen"
+                     data-tooltip="Nitrogen content in your soil (kg/ha). Typical range: 0–140.">
+                🧪 Nitrogen (N) — kg/ha
+              </label>
+              <input
+                type="number"
+                id="nitrogen"
+                name="nitrogen"
+                placeholder="e.g., 80"
+                min="0" max="140" step="0.1"
+                required aria-required="true"
+                aria-describedby="nitrogenHelp"
+              />
+              <span class="help-text" id="nitrogenHelp">ℹ️ From your soil test report (0–140)</span>
+            </div>
+
+            <!-- Phosphorus -->
+            <div class="form-group">
+              <label for="phosphorus"
+                     data-tooltip="Phosphorus content in your soil (kg/ha). Typical range: 0–145.">
+                🧪 Phosphorus (P) — kg/ha
+              </label>
+              <input
+                type="number"
+                id="phosphorus"
+                name="phosphorus"
+                placeholder="e.g., 40"
+                min="0" max="145" step="0.1"
+                required aria-required="true"
+                aria-describedby="phosphorusHelp"
+              />
+              <span class="help-text" id="phosphorusHelp">ℹ️ From your soil test report (0–145)</span>
+            </div>
+
+            <!-- Potassium -->
+            <div class="form-group">
+              <label for="potassium"
+                     data-tooltip="Potassium content in your soil (kg/ha). Typical range: 0–205.">
+                🧪 Potassium (K) — kg/ha
+              </label>
+              <input
+                type="number"
+                id="potassium"
+                name="potassium"
+                placeholder="e.g., 60"
+                min="0" max="205" step="0.1"
+                required aria-required="true"
+                aria-describedby="potassiumHelp"
+              />
+              <span class="help-text" id="potassiumHelp">ℹ️ From your soil test report (0–205)</span>
+            </div>
+
+            <!-- pH -->
+            <div class="form-group ph-group">
+              <label for="ph"
+                     data-tooltip="Soil pH (0–14). Acidic soils are below 7, alkaline soils are above 7. Most crops prefer 6–7.5.">
+                🧪 Soil pH Level
+              </label>
+              <div class="ph-row">
+                <input
+                  type="range"
+                  id="ph"
+                  name="ph"
+                  min="0" max="14" step="0.1" value="7"
+                  required aria-required="true"
+                  aria-valuemin="0" aria-valuemax="14" aria-valuenow="7"
+                  aria-describedby="phHelp"
+                />
+                <span class="ph-display optimal" id="phDisplay" aria-live="polite">7.0</span>
+              </div>
+              <span class="help-text" id="phHelp">ℹ️ Slide to your soil pH value (0 = very acidic, 14 = very alkaline)</span>
+            </div>
+
+            <!-- Plant Image Upload -->
+            <div class="form-group full-width">
+              <label for="plantImage"
+                     data-tooltip="Upload a clear photo of a plant leaf. Used for AI disease detection. JPG or PNG, max 10MB.">
+                🌿 Plant Leaf Image <span style="font-weight:400;color:#757575;">(optional — for disease detection)</span>
+              </label>
+              <input
+                type="file"
+                id="plantImage"
+                name="plantImage"
+                accept="image/*"
+                aria-describedby="plantImageHelp"
+              />
+              <span class="help-text" id="plantImageHelp">ℹ️ Upload a photo of a plant leaf to detect diseases</span>
+              <div class="image-preview-wrap">
+                <img id="imagePreview" src="" alt="Uploaded leaf preview" hidden />
+              </div>
+            </div>
+
+          </div><!-- /.form-grid -->
+
+          <div class="submit-row">
+            <button type="submit" id="submitBtn" class="btn-primary">
+              🌾 Predict &amp; Analyse
+            </button>
+          </div>
+        </form>
+      </div><!-- /.card -->
+    </section>
+
+    <!-- ── Results Section ──────────────────────────────────────────────────── -->
+    <section id="resultsSection" hidden aria-live="polite" aria-labelledby="resultsHeading">
+
+      <h2 class="section-label" id="resultsHeading">
+        <span aria-hidden="true">📊</span> Analysis Results
+      </h2>
+
+      <div class="results-grid">
+
+        <!-- Yield Prediction Card -->
+        <article class="card yield-card" aria-labelledby="yieldHeading">
+          <div class="card-header">
+            <span class="icon" aria-hidden="true">🌾</span>
+            <h3 id="yieldHeading">Predicted Crop Yield</h3>
+          </div>
+          <div class="yield-display">
+            <div class="yield-value" id="yieldValue" aria-live="polite">—</div>
+            <div class="yield-unit"  id="yieldUnit">tons/hectare</div>
+            <div class="yield-crop"  id="yieldCrop"></div>
+            <div class="yield-confidence" id="yieldConfidence"></div>
+          </div>
+        </article>
+
+        <!-- Weather Card -->
+        <article class="card weather-card" aria-labelledby="weatherHeading">
+          <div class="card-header">
+            <span class="icon" aria-hidden="true">🌤️</span>
+            <h3 id="weatherHeading">Real-Time Weather</h3>
+          </div>
+          <div class="weather-location">
+            <span aria-hidden="true">📍</span>
+            <span id="weatherLocation">—</span>
+          </div>
+          <div class="weather-main">
+            <div class="weather-icon" id="weatherIcon" aria-hidden="true">🌤️</div>
+            <div>
+              <div class="weather-temp" id="weatherTemp">—</div>
+              <div class="weather-desc" id="weatherDesc">—</div>
+            </div>
+          </div>
+          <div class="weather-stats">
+            <div class="weather-stat">
+              <span class="label">💧 Humidity</span>
+              <span class="value" id="weatherHumidity">—</span>
+            </div>
+            <div class="weather-stat">
+              <span class="label">🌧️ Rainfall</span>
+              <span class="value" id="weatherRainfall">—</span>
+            </div>
+            <div class="weather-stat">
+              <span class="label">💨 Wind Speed</span>
+              <span class="value" id="weatherWind">—</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Disease Detection Card -->
+        <article id="diseaseSection" class="card disease-card" hidden aria-labelledby="diseaseHeading">
+          <div class="card-header">
+            <span class="icon" aria-hidden="true">🔬</span>
+            <h3 id="diseaseHeading">Disease Detection</h3>
+          </div>
+          <div class="disease-name" id="diseaseName">—</div>
+          <div class="disease-meta">
+            <span class="disease-badge" id="diseaseSeverity">—</span>
+            <span class="disease-badge" id="diseaseAffected">—</span>
+          </div>
+          <div class="confidence-bar-wrap">
+            <div class="confidence-label">Detection Confidence</div>
+            <div class="confidence-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+              <div class="confidence-fill high" id="diseaseConfidenceBar" style="width:0%"></div>
+            </div>
+            <div class="confidence-val" id="diseaseConfidenceVal">0%</div>
+          </div>
+          <div class="treatment-box" id="diseaseTreatment"></div>
+        </article>
+
+        <!-- Recommendations Card -->
+        <article class="card rec-card" aria-labelledby="recHeading">
+          <div class="card-header">
+            <span class="icon" aria-hidden="true">💡</span>
+            <h3 id="recHeading">Smart Recommendations</h3>
+          </div>
+          <div class="rec-grid">
+            <div class="rec-item">
+              <h4><span aria-hidden="true">🧴</span> Fertilizer</h4>
+              <p id="recFertilizer">—</p>
+              <p style="font-size:.85rem;margin-top:.3rem;" id="recSchedule"></p>
+              <p class="rec-alternatives-label">Alternatives:</p>
+              <ul id="recAlternatives"></ul>
+            </div>
+            <div class="rec-item">
+              <h4><span aria-hidden="true">🔄</span> Crop Rotation</h4>
+              <p id="recRotation">—</p>
+            </div>
+            <div class="rec-item">
+              <h4><span aria-hidden="true">💧</span> Irrigation</h4>
+              <p id="recIrrigation">—</p>
+            </div>
+            <div class="rec-item">
+              <h4><span aria-hidden="true">🐛</span> Pest Management</h4>
+              <p id="recPest">—</p>
+            </div>
+            <div class="rec-item">
+              <h4><span aria-hidden="true">🌱</span> General Advice</h4>
+              <p id="recGeneral">—</p>
+            </div>
+          </div>
+        </article>
+
+      </div><!-- /.results-grid -->
+
+      <!-- ── Charts ──────────────────────────────────────────────────────────── -->
+      <section class="charts-section" aria-labelledby="chartsHeading">
+        <h2 class="section-label" id="chartsHeading">
+          <span aria-hidden="true">📈</span> Visualisations
+        </h2>
+        <div class="charts-grid">
+
+          <!-- Bar Chart -->
+          <div class="card chart-card">
+            <div class="card-header">
+              <span class="icon" aria-hidden="true">📊</span>
+              <h3>Yield Comparison</h3>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="barChart" aria-label="Bar chart showing yield comparison across crops" role="img"></canvas>
+            </div>
+          </div>
+
+          <!-- Radar Chart -->
+          <div class="card chart-card">
+            <div class="card-header">
+              <span class="icon" aria-hidden="true">🕸️</span>
+              <h3>Nutrient Analysis</h3>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="radarChart" aria-label="Radar chart showing soil nutrient levels" role="img"></canvas>
+            </div>
+          </div>
+
+          <!-- Pie Chart -->
+          <div class="card chart-card">
+            <div class="card-header">
+              <span class="icon" aria-hidden="true">🥧</span>
+              <h3>Fertilizer Breakdown</h3>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="pieChart" aria-label="Pie chart showing fertilizer recommendation distribution" role="img"></canvas>
+            </div>
+          </div>
+
+        </div><!-- /.charts-grid -->
+      </section>
+
+    </section><!-- /#resultsSection -->
+
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+  <footer class="site-footer" role="contentinfo">
+    <p>🌾 Smart Agriculture Dashboard — Powered by AI | Built with Chart.js</p>
+  </footer>
+
+  <!-- App scripts (ES modules) -->
+  <script type="module" src="js/app.js"></script>
+
+</body>
+</html>
