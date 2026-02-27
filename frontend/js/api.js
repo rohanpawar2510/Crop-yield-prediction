@@ -10,6 +10,11 @@
 // a different origin, e.g. API_BASE = 'https://api.mysite.com'.
 const API_BASE = '';
 
+// Set to true to skip real API calls and use mock data immediately.
+// Useful when running the frontend without a backend server.
+// Change to false when a real backend is available.
+const USE_MOCK = true;
+
 // ─── Mock responses ──────────────────────────────────────────────────────────
 
 const MOCK_PREDICTION = {
@@ -63,7 +68,7 @@ const MOCK_RECOMMENDATIONS = {
  * @param {number} timeoutMs
  * @returns {Promise<any>}
  */
-async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 2000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -85,6 +90,10 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
  * @returns {Promise<typeof MOCK_PREDICTION>}
  */
 export async function predictYield(data) {
+  if (USE_MOCK) {
+    await simulateDelay(300);
+    return { ...MOCK_PREDICTION };
+  }
   try {
     return await fetchWithTimeout(`${API_BASE}/api/predict`, {
       method: 'POST',
@@ -93,7 +102,7 @@ export async function predictYield(data) {
     });
   } catch {
     console.warn('Yield prediction API unavailable — using mock data.');
-    await simulateDelay(800);
+    await simulateDelay(300);
     return { ...MOCK_PREDICTION };
   }
 }
@@ -104,12 +113,16 @@ export async function predictYield(data) {
  * @returns {Promise<typeof MOCK_WEATHER>}
  */
 export async function fetchWeather(location) {
+  if (USE_MOCK) {
+    await simulateDelay(200);
+    return { ...MOCK_WEATHER, location };
+  }
   try {
     const url = `${API_BASE}/api/weather?location=${encodeURIComponent(location)}`;
     return await fetchWithTimeout(url);
   } catch {
     console.warn('Weather API unavailable — using mock data.');
-    await simulateDelay(600);
+    await simulateDelay(200);
     return { ...MOCK_WEATHER, location };
   }
 }
@@ -120,6 +133,10 @@ export async function fetchWeather(location) {
  * @returns {Promise<typeof MOCK_DISEASE>}
  */
 export async function detectDisease(imageFile) {
+  if (USE_MOCK) {
+    await simulateDelay(400);
+    return { ...MOCK_DISEASE };
+  }
   try {
     const formData = new FormData();
     formData.append('image', imageFile);
@@ -131,7 +148,7 @@ export async function detectDisease(imageFile) {
     return await response.json();
   } catch {
     console.warn('Disease detection API unavailable — using mock data.');
-    await simulateDelay(1200);
+    await simulateDelay(400);
     return { ...MOCK_DISEASE };
   }
 }
@@ -142,6 +159,10 @@ export async function detectDisease(imageFile) {
  * @returns {Promise<typeof MOCK_RECOMMENDATIONS>}
  */
 export async function getRecommendations(data) {
+  if (USE_MOCK) {
+    await simulateDelay(300);
+    return { ...MOCK_RECOMMENDATIONS };
+  }
   try {
     return await fetchWithTimeout(`${API_BASE}/api/recommend`, {
       method: 'POST',
@@ -150,7 +171,7 @@ export async function getRecommendations(data) {
     });
   } catch {
     console.warn('Recommendations API unavailable — using mock data.');
-    await simulateDelay(1000);
+    await simulateDelay(300);
     return { ...MOCK_RECOMMENDATIONS };
   }
 }
