@@ -12,6 +12,7 @@ load_dotenv()
 
 # External API keys (to be filled in .env for Phase 3 / Phase 5)
 OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "")
+OPENWEATHER_BASE_URL: str = "https://api.openweathermap.org/data/2.5/weather"
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
 # Path to the trained ML model artifact (Phase 2)
