@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Thermometer, Droplets, Wind, CloudRain, Search, Loader2 } from 'lucide-react';
@@ -27,6 +27,11 @@ export default function Dashboard() {
     fetchWeather(location);
     if (error) toast.error(error);
   };
+
+  useEffect(() => {
+    fetchWeather('Mumbai');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const quickActions = [
     { to: '/weather', label: 'Get Weather', emoji: '🌤️', color: 'bg-blue-500' },
@@ -73,7 +78,7 @@ export default function Dashboard() {
           <>
             <StatsCard icon={Thermometer} label="Temperature" value={weather.temperature} unit="°C" color="accent" />
             <StatsCard icon={Droplets} label="Humidity" value={weather.humidity} unit="%" color="secondary" />
-            <StatsCard icon={Wind} label="Wind Speed" value={weather.wind_speed} unit="m/s" color="primary" />
+            <StatsCard icon={Wind} label="Wind Speed" value={weather.wind_speed} unit="km/h" color="primary" />
             <StatsCard icon={CloudRain} label="Rainfall" value={weather.rainfall ?? 0} unit="mm" color="purple" />
           </>
         ) : (

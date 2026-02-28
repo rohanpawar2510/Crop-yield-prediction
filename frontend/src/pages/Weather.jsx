@@ -60,7 +60,7 @@ export default function Weather() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatsCard icon={Thermometer} label="Temperature" value={weather.temperature} unit="°C" color="accent" />
             <StatsCard icon={Droplets} label="Humidity" value={weather.humidity} unit="%" color="secondary" />
-            <StatsCard icon={Wind} label="Wind Speed" value={weather.wind_speed} unit="m/s" color="primary" />
+            <StatsCard icon={Wind} label="Wind Speed" value={weather.wind_speed} unit="km/h" color="primary" />
           </div>
         </>
       )}

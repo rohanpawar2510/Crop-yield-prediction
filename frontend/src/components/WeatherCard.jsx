@@ -1,21 +1,9 @@
 import { motion } from 'framer-motion';
 import { Droplets, Wind, Thermometer, Cloud } from 'lucide-react';
 
-const weatherEmojis = {
-  Clear: '☀️',
-  Clouds: '☁️',
-  Rain: '🌧️',
-  Drizzle: '🌦️',
-  Thunderstorm: '⛈️',
-  Snow: '❄️',
-  Mist: '🌫️',
-  Fog: '🌫️',
-  Haze: '🌁',
-};
-
 export default function WeatherCard({ weather }) {
   if (!weather) return null;
-  const emoji = weatherEmojis[weather.weather_main] || '🌤️';
+  const emoji = weather.icon || '🌤️';
 
   return (
     <motion.div
@@ -49,7 +37,7 @@ export default function WeatherCard({ weather }) {
           <Wind className="text-teal-500" size={20} />
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">Wind</p>
-            <p className="font-bold text-gray-900 dark:text-white">{weather.wind_speed} m/s</p>
+            <p className="font-bold text-gray-900 dark:text-white">{weather.wind_speed} km/h</p>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl">
