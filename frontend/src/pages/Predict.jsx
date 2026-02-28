@@ -51,17 +51,17 @@ export default function Predict() {
               <div className="text-6xl mb-4">🌱</div>
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Recommended Crop</h3>
               <p className="text-4xl font-extrabold text-primary capitalize mb-4">
-                {result.predicted_crop || result.crop || result.prediction}
+                {result.crop || result.predicted_crop || result.prediction}
               </p>
               {result.confidence != null && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                    Confidence: {(result.confidence * 100).toFixed(1)}%
+                    Confidence: {result.confidence}%
                   </p>
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                     <div
                       className="bg-primary h-3 rounded-full transition-all duration-700"
-                      style={{ width: `${(result.confidence * 100).toFixed(0)}%` }}
+                      style={{ width: `${result.confidence}%` }}
                     />
                   </div>
                 </div>

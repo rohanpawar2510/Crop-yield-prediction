@@ -7,7 +7,7 @@ const sections = [
   { key: 'crop_rotation', label: 'Crop Rotation', icon: RefreshCw, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
   { key: 'irrigation', label: 'Irrigation', icon: Droplets, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
   { key: 'pest_management', label: 'Pest Management', icon: Bug, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-  { key: 'general_advice', label: 'General Advice', icon: Sprout, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+  { key: 'general', label: 'General Advice', icon: Sprout, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
 ];
 
 function AccordionItem({ section, data }) {
@@ -16,7 +16,22 @@ function AccordionItem({ section, data }) {
   const content = data?.[section.key];
   if (!content) return null;
 
-  const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+  let renderedContent;
+  if (section.key === 'fertilizer' && typeof content === 'object') {
+    renderedContent = (
+      <div className="space-y-1">
+        {content.primary && <p><span className="font-medium">Primary:</span> {content.primary}</p>}
+        {content.amount && <p><span className="font-medium">Amount:</span> {content.amount}</p>}
+        {content.schedule && <p><span className="font-medium">Schedule:</span> {content.schedule}</p>}
+        {Array.isArray(content.alternatives) && content.alternatives.length > 0 && (
+          <p><span className="font-medium">Alternatives:</span> {content.alternatives.join(', ')}</p>
+        )}
+      </div>
+    );
+  } else {
+    const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+    renderedContent = <span className="whitespace-pre-wrap">{text}</span>;
+  }
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -42,8 +57,8 @@ function AccordionItem({ section, data }) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
-              {text}
+            <div className="p-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+              {renderedContent}
             </div>
           </motion.div>
         )}
