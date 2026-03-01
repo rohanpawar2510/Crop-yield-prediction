@@ -14,8 +14,8 @@ export default function Weather() {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!location.trim()) return;
-    await fetchWeather(location);
-    if (error) toast.error(error);
+    const err = await fetchWeather(location);
+    if (err) toast.error(err);
   };
 
   return (
@@ -57,6 +57,11 @@ export default function Weather() {
       {weather && !loading && (
         <>
           <WeatherCard weather={weather} />
+          {weather.is_mock && (
+            <div role="alert" className="card bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700">
+              ⚠️ Showing sample data — configure <code>OPENWEATHER_API_KEY</code> for live weather
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatsCard icon={Thermometer} label="Temperature" value={weather.temperature} unit="°C" color="accent" />
             <StatsCard icon={Droplets} label="Humidity" value={weather.humidity} unit="%" color="secondary" />

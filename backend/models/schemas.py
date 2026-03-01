@@ -43,6 +43,7 @@ class WeatherResponse(BaseModel):
     wind_speed: float
     description: str
     icon: str
+    is_mock: bool = False
 
 
 # ─── POST /api/detect-disease ────────────────────────────────────────────────
