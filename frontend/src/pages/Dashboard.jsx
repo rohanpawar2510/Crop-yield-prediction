@@ -22,10 +22,10 @@ export default function Dashboard() {
   const [location, setLocation] = useState('Mumbai');
   const { weather, loading, error, fetchWeather } = useWeather();
 
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
-    fetchWeather(location);
-    if (error) toast.error(error);
+    const err = await fetchWeather(location);
+    if (err) toast.error(err);
   };
 
   useEffect(() => {
@@ -92,6 +92,11 @@ export default function Dashboard() {
       {weather && (
         <motion.div variants={itemVariants}>
           <WeatherCard weather={weather} />
+          {weather.is_mock && (
+            <div role="alert" className="card bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700 mt-4">
+              ⚠️ Showing sample data — configure <code>OPENWEATHER_API_KEY</code> for live weather
+            </div>
+          )}
         </motion.div>
       )}
 

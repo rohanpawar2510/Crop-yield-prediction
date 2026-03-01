@@ -7,14 +7,17 @@ export function useWeather() {
   const [error, setError] = useState(null);
 
   const fetchWeather = async (location) => {
-    if (!location.trim()) return;
+    if (!location.trim()) return null;
     setLoading(true);
     setError(null);
     try {
       const res = await getWeather(location);
       setWeather(res.data);
+      return null;
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to fetch weather data');
+      const message = err.response?.data?.detail || 'Failed to fetch weather data';
+      setError(message);
+      return message;
     } finally {
       setLoading(false);
     }

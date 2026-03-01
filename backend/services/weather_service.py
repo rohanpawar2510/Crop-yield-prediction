@@ -11,6 +11,8 @@ import logging
 
 import httpx
 
+from fastapi import HTTPException
+
 import config
 from models.schemas import WeatherResponse
 
@@ -54,7 +56,15 @@ def get_weather(location: str) -> WeatherResponse:
 
     Returns:
         WeatherResponse with live or mock weather data.
+
+    Raises:
+        HTTPException: 503 if OPENWEATHER_API_KEY is not configured.
     """
+    if not config.OPENWEATHER_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Weather service unavailable: OPENWEATHER_API_KEY is not configured",
+        )
     try:
         params = {
             "q": location,
@@ -98,4 +108,4 @@ def get_weather(location: str) -> WeatherResponse:
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Unexpected error fetching weather for %r: %s — returning mock data", location, exc)
-    return WeatherResponse(location=location, **_MOCK)
+    return WeatherResponse(location=location, is_mock=True, **_MOCK)
