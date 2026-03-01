@@ -3,12 +3,16 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import PredictionForm from '../components/PredictionForm';
 import NPKChart from '../components/NPKChart';
+import SoilRadarChart from '../components/SoilRadarChart';
+import YieldComparisonChart from '../components/YieldComparisonChart';
+import FeatureImportanceChart from '../components/FeatureImportanceChart';
 import { predictCrop } from '../services/api';
 
 export default function Predict() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [npk, setNpk] = useState({ nitrogen: 0, phosphorus: 0, potassium: 0 });
+  const [formData, setFormData] = useState(null);
 
   const handleSubmit = async (data) => {
     setLoading(true);
@@ -16,6 +20,7 @@ export default function Predict() {
       const res = await predictCrop(data);
       setResult(res.data);
       setNpk({ nitrogen: data.nitrogen, phosphorus: data.phosphorus, potassium: data.potassium });
+      setFormData(data);
       toast.success('Prediction complete!');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Prediction failed. Please try again.');
@@ -79,6 +84,46 @@ export default function Predict() {
           <NPKChart nitrogen={npk.nitrogen} phosphorus={npk.phosphorus} potassium={npk.potassium} />
         </div>
       </div>
+
+      {result && formData && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <SoilRadarChart
+                nitrogen={formData.nitrogen}
+                phosphorus={formData.phosphorus}
+                potassium={formData.potassium}
+                temperature={formData.temperature}
+                humidity={formData.humidity}
+                ph={formData.ph}
+                rainfall={formData.rainfall}
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <YieldComparisonChart
+                suitable_crops={result.suitable_crops}
+                yield_comparison={result.yield_comparison}
+                predicted_crop={result.crop || result.predicted_crop || result.prediction}
+              />
+            </motion.div>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <FeatureImportanceChart />
+          </motion.div>
+        </>
+      )}
     </motion.div>
   );
 }

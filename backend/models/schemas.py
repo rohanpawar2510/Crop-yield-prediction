@@ -44,6 +44,9 @@ class WeatherResponse(BaseModel):
     description: str
     icon: str
     is_mock: bool = False
+    feels_like: Optional[float] = None
+    pressure: Optional[int] = None
+    visibility: Optional[int] = None
 
 
 # ─── POST /api/detect-disease ────────────────────────────────────────────────

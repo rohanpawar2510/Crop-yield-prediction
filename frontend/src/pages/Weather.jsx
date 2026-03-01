@@ -67,6 +67,52 @@ export default function Weather() {
             <StatsCard icon={Droplets} label="Humidity" value={weather.humidity} unit="%" color="secondary" />
             <StatsCard icon={Wind} label="Wind Speed" value={weather.wind_speed} unit="km/h" color="primary" />
           </div>
+          {(weather.feels_like != null || weather.pressure != null || weather.visibility != null || weather.description) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {weather.feels_like != null && (
+                <motion.div whileHover={{ scale: 1.02, y: -2 }} className="card flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-500 text-2xl">🌡️</div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Feels Like</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {weather.feels_like}<span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">°C</span>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+              {weather.pressure != null && (
+                <motion.div whileHover={{ scale: 1.02, y: -2 }} className="card flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-500 text-2xl">🔵</div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Pressure</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {weather.pressure}<span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">hPa</span>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+              {weather.visibility != null && (
+                <motion.div whileHover={{ scale: 1.02, y: -2 }} className="card flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-sky-100 dark:bg-sky-900/30 text-sky-500 text-2xl">👁️</div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Visibility</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {(weather.visibility / 1000).toFixed(1)}<span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">km</span>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+              {weather.description && (
+                <motion.div whileHover={{ scale: 1.02, y: -2 }} className="card flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-700/30 text-4xl">{weather.icon || '🌡️'}</div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Condition</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white capitalize">{weather.description}</p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
         </>
       )}
 
