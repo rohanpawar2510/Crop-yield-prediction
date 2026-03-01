@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 
 const defaultValues = {
+  location: '',
   nitrogen: '',
   phosphorus: '',
   potassium: '',
@@ -16,6 +17,7 @@ export default function PredictionForm({ onSubmit, loading }) {
   const [values, setValues] = useState(defaultValues);
 
   const fields = [
+    { key: 'location', label: 'Location', placeholder: 'e.g. Pune, Maharashtra', type: 'text' },
     { key: 'nitrogen', label: 'Nitrogen (N)', placeholder: '0-140', min: 0, max: 140 },
     { key: 'phosphorus', label: 'Phosphorus (P)', placeholder: '5-145', min: 0, max: 145 },
     { key: 'potassium', label: 'Potassium (K)', placeholder: '5-205', min: 0, max: 205 },
@@ -31,25 +33,31 @@ export default function PredictionForm({ onSubmit, loading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const data = {};
+    const data = { location: values.location };
     for (const [k, v] of Object.entries(values)) {
-      data[k] = parseFloat(v);
+      if (k !== 'location') {
+        data[k] = parseFloat(v);
+      }
     }
     onSubmit(data);
   };
 
-  const isValid = Object.values(values).every((v) => v !== '' && !isNaN(parseFloat(v)));
+  const isValid =
+    values.location.trim() !== '' &&
+    Object.entries(values)
+      .filter(([k]) => k !== 'location')
+      .every(([, v]) => v !== '' && !isNaN(parseFloat(v)));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {fields.map(({ key, label, placeholder, min, max, step }) => (
+        {fields.map(({ key, label, placeholder, type, min, max, step }) => (
           <div key={key}>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {label}
             </label>
             <input
-              type="number"
+              type={type ?? 'number'}
               value={values[key]}
               onChange={(e) => handleChange(key, e.target.value)}
               placeholder={placeholder}

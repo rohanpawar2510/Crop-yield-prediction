@@ -13,11 +13,14 @@ from pydantic import BaseModel, Field
 class SoilInput(BaseModel):
     """Soil / location data submitted by the user."""
 
-    location: str = Field(..., example="Pune, Maharashtra")
+    location: str = Field(default="Unknown", example="Pune, Maharashtra")
     nitrogen: float = Field(..., ge=0, le=140, example=80)
     phosphorus: float = Field(..., ge=0, le=145, example=40)
     potassium: float = Field(..., ge=0, le=205, example=60)
     ph: float = Field(..., ge=0, le=14, example=6.5)
+    temperature: Optional[float] = Field(default=None, ge=0, le=50, example=25.0)
+    humidity: Optional[float] = Field(default=None, ge=0, le=100, example=80.0)
+    rainfall: Optional[float] = Field(default=None, ge=0, le=500, example=200.0)
 
 
 # ─── POST /api/predict ────────────────────────────────────────────────────────
