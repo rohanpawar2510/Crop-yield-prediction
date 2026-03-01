@@ -69,7 +69,7 @@ export default function SoilRadarChart({
           label: (ctx) => {
             const raw = rawValues[ctx.dataIndex];
             const unit = ['mg/kg', 'mg/kg', 'mg/kg', '°C', '%', '', 'mm'][ctx.dataIndex];
-            return ` ${ctx.label}: ${raw}${unit ? ' ' + unit : ''}`;
+            return ` ${ctx.label}: ${raw}${unit ? ` ${unit}` : ''}`;
           },
         },
       },

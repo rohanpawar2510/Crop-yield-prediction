@@ -120,15 +120,7 @@ export default function Predict() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <FeatureImportanceChart
-              nitrogen={formData.nitrogen}
-              phosphorus={formData.phosphorus}
-              potassium={formData.potassium}
-              temperature={formData.temperature}
-              humidity={formData.humidity}
-              ph={formData.ph}
-              rainfall={formData.rainfall}
-            />
+            <FeatureImportanceChart />
           </motion.div>
         </>
       )}

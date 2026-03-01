@@ -93,7 +93,7 @@ def get_weather(location: str) -> WeatherResponse:
             wind_speed=wind_speed,
             description=data["weather"][0]["description"].capitalize(),
             icon=icon_emoji,
-            feels_like=round(data["main"].get("feels_like", data["main"]["temp"]), 1),
+            feels_like=round(data["main"].get("feels_like", data["main"].get("temp", 0)), 1),
             pressure=data["main"].get("pressure"),
             visibility=data.get("visibility"),
         )
