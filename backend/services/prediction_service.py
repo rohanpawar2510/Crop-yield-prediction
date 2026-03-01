@@ -27,6 +27,9 @@ def predict_yield(
     phosphorus: float,
     potassium: float,
     ph: float,
+    temperature: float | None = None,
+    humidity: float | None = None,
+    rainfall: float | None = None,
 ) -> PredictResponse:
     """Return a crop yield prediction for the given soil parameters.
 
@@ -36,6 +39,9 @@ def predict_yield(
         phosphorus: Phosphorus content in kg/ha.
         potassium: Potassium content in kg/ha.
         ph: Soil pH value (0–14).
+        temperature: Air temperature in °C (optional).
+        humidity: Relative humidity in % (optional).
+        rainfall: Rainfall in mm (optional).
 
     Returns:
         PredictResponse with mock data until the ML model is integrated.
