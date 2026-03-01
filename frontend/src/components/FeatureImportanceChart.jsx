@@ -27,6 +27,7 @@ const sorted = Object.entries(IMPORTANCE).sort((a, b) => b[1] - a[1]);
 
 export default function FeatureImportanceChart() {
   const { isDark } = useTheme();
+  const textColor = isDark ? '#9CA3AF' : '#6B7280';
   const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
   const data = {
