@@ -27,7 +27,9 @@ class SoilInput(BaseModel):
 
 class PredictResponse(BaseModel):
     crop: str
+    recommended_crop: str
     yield_: float = Field(..., alias="yield")
+    predicted_yield: float
     unit: str
     confidence: int
     suitable_crops: List[str]
