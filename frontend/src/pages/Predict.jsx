@@ -56,8 +56,16 @@ export default function Predict() {
               <div className="text-6xl mb-4">🌱</div>
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Recommended Crop</h3>
               <p className="text-4xl font-extrabold text-primary capitalize mb-4">
-                {result.crop || result.predicted_crop || result.prediction}
+                {result.recommended_crop || result.crop || result.predicted_crop || result.prediction}
               </p>
+              {(result.predicted_yield != null || result.yield != null) && (
+                <div className="mt-2 mb-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-xl">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Predicted Yield</p>
+                  <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                    {result.predicted_yield ?? result.yield} <span className="text-base font-normal">{result.unit || 'tons/hectare'}</span>
+                  </p>
+                </div>
+              )}
               {result.confidence != null && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
@@ -111,7 +119,7 @@ export default function Predict() {
               <YieldComparisonChart
                 suitable_crops={result.suitable_crops}
                 yield_comparison={result.yield_comparison}
-                predicted_crop={result.crop || result.predicted_crop || result.prediction}
+                predicted_crop={result.recommended_crop || result.crop || result.predicted_crop || result.prediction}
               />
             </motion.div>
           </div>
