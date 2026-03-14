@@ -15,6 +15,6 @@ export const getRecommendations = (data) =>
   API.post('/recommend', data);
 
 export const detectDisease = (formData) =>
-  API.post('/disease', formData, {
+  API.post('/detect-disease', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
