@@ -25,17 +25,29 @@ class SoilInput(BaseModel):
 
 # ─── POST /api/predict ────────────────────────────────────────────────────────
 
+class CropPrediction(BaseModel):
+    """A single crop prediction entry with confidence score."""
+    crop: str
+    confidence: float
+
+
 class PredictResponse(BaseModel):
+    # Core prediction fields
+    location: str = Field(default="Unknown")
     crop: str
     recommended_crop: str
-    yield_: float = Field(..., alias="yield")
-    predicted_yield: float
-    unit: str
-    confidence: int
-    suitable_crops: List[str]
-    yield_comparison: List[float]
+    confidence: float
+    top_3_predictions: List[CropPrediction] = Field(default_factory=list)
+    model_accuracy: Optional[float] = None
 
-    model_config = {"populate_by_name": True}
+    # Yield prediction fields (kept for frontend backward-compatibility)
+    yield_: float = Field(default=0.0, alias="yield")
+    predicted_yield: float = Field(default=0.0)
+    unit: str = Field(default="tons/hectare")
+    suitable_crops: List[str] = Field(default_factory=list)
+    yield_comparison: List[float] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True, "protected_namespaces": ()}
 
 
 # ─── GET /api/weather ─────────────────────────────────────────────────────────

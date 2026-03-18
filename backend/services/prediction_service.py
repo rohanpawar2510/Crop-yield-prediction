@@ -1,9 +1,9 @@
 """
 prediction_service.py — Crop recommendation and yield prediction logic.
 
-Loads trained Random Forest models (crop recommendation classifier and
-yield prediction regressor) and runs inference.  Falls back to mock data
-when model files are not available.
+Loads the trained CropPredictor from ml_models/ for crop classification
+and the yield regression model from models/ for yield estimation.
+Falls back to mock data when model files are not available.
 """
 
 from __future__ import annotations
@@ -16,54 +16,82 @@ import numpy as np
 import joblib
 
 import config
-from models.schemas import PredictResponse
+from models.schemas import CropPrediction, PredictResponse
 from services.weather_service import get_weather
 
 logger = logging.getLogger(__name__)
 
-# ─── Model loading ────────────────────────────────────────────────────────────
+# ─── CropPredictor (ml_models) ────────────────────────────────────────────────
 
-_crop_model = None
+_crop_predictor = None
+_crop_predictor_loaded: bool = False
+
+
+def _load_crop_predictor():
+    """Attempt to load the CropPredictor from ml_models/. Runs once."""
+    global _crop_predictor, _crop_predictor_loaded
+    if _crop_predictor_loaded:
+        return _crop_predictor
+
+    try:
+        from ml_models.predict_with_model import CropPredictor
+        predictor = CropPredictor()
+        predictor._load()  # trigger model load to detect errors early
+        _crop_predictor = predictor
+        logger.info("CropPredictor loaded successfully from ml_models/")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("CropPredictor not available (%s) — will try legacy models", exc)
+        _crop_predictor = None
+
+    _crop_predictor_loaded = True
+    return _crop_predictor
+
+
+# ─── Legacy yield model ───────────────────────────────────────────────────────
+
 _yield_model = None
-_label_encoder = None
-_models_loaded: bool = False
+_legacy_label_encoder = None
+_legacy_models_loaded: bool = False
 
 
-def _load_models() -> None:
-    """Attempt to load ML models from disk. Runs once at first prediction."""
-    global _crop_model, _yield_model, _label_encoder, _models_loaded
-    if _models_loaded:
+def _load_legacy_models() -> None:
+    """Attempt to load the yield regression model from models/. Runs once."""
+    global _yield_model, _legacy_label_encoder, _legacy_models_loaded
+    if _legacy_models_loaded:
         return
 
     base = os.path.dirname(__file__)
-    crop_path = os.path.join(base, "..", config.CROP_MODEL_PATH)
     yield_path = os.path.join(base, "..", config.YIELD_MODEL_PATH)
     encoder_path = os.path.join(base, "..", config.LABEL_ENCODER_PATH)
 
     try:
-        _crop_model = joblib.load(crop_path)
         _yield_model = joblib.load(yield_path)
-        _label_encoder = joblib.load(encoder_path)
-        logger.info("ML models loaded successfully from %s, %s, %s", crop_path, yield_path, encoder_path)
-    except FileNotFoundError as exc:
-        logger.warning("Model file not found (%s) — falling back to mock predictions", exc)
+        _legacy_label_encoder = joblib.load(encoder_path)
+        logger.info("Yield model loaded from %s", yield_path)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Error loading models (%s) — falling back to mock predictions", exc)
+        logger.warning("Yield model not available (%s)", exc)
 
-    _models_loaded = True
+    _legacy_models_loaded = True
 
 
 # ─── Mock fallback ────────────────────────────────────────────────────────────
 
 _MOCK: dict = {
+    "location": "Unknown",
     "crop": "Rice",
     "recommended_crop": "Rice",
     "yield": 4.2,
     "predicted_yield": 4.2,
     "unit": "tons/hectare",
-    "confidence": 91,
+    "confidence": 91.0,
     "suitable_crops": ["Rice", "Wheat", "Maize", "Soybean"],
     "yield_comparison": [4.2, 3.8, 5.1, 2.9],
+    "top_3_predictions": [
+        {"crop": "Rice", "confidence": 91.0},
+        {"crop": "Wheat", "confidence": 5.0},
+        {"crop": "Maize", "confidence": 4.0},
+    ],
+    "model_accuracy": None,
 }
 
 
@@ -101,18 +129,20 @@ def predict_yield(
     humidity: Optional[float] = None,
     rainfall: Optional[float] = None,
 ) -> PredictResponse:
-    """Predict the best crop **and** expected yield for the given parameters.
+    """Predict the best crop and expected yield for the given parameters.
 
     Workflow:
       1. If temperature/humidity/rainfall are not supplied, fetch them from
          the OpenWeather API using *location*.
-      2. Run the crop recommendation model to predict the best crop.
+      2. Use the CropPredictor (ml_models/) for crop classification with
+         top-3 predictions and confidence scores.
       3. Pass soil + climate + predicted crop into the yield regression model.
-      4. Return both the recommended crop and the predicted yield.
+      4. Return crop, confidence, top-3 predictions, yield, and model accuracy.
 
     Falls back to mock data when models are not loaded.
     """
-    _load_models()
+    predictor = _load_crop_predictor()
+    _load_legacy_models()
 
     # ── Resolve climate values ───────────────────────────────────────────
     if temperature is None or humidity is None or rainfall is None:
@@ -121,33 +151,66 @@ def predict_yield(
         humidity = humidity if humidity is not None else w_hum
         rainfall = rainfall if rainfall is not None else w_rain
 
-    # ── Fall back to mock if models not available ────────────────────────
-    if _crop_model is None or _yield_model is None or _label_encoder is None:
-        return PredictResponse(**_MOCK)
+    # ── Fall back to mock if no models available ─────────────────────────
+    if predictor is None:
+        mock = dict(_MOCK)
+        mock["location"] = location
+        return PredictResponse(**mock)
 
-    # ── Step 1: Crop recommendation ──────────────────────────────────────
-    crop_features = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]])
-    crop_encoded = _crop_model.predict(crop_features)[0]
-    recommended_crop: str = _label_encoder.inverse_transform([crop_encoded])[0]
+    # ── Step 1: Crop classification (CropPredictor) ──────────────────────
+    result = predictor.predict(
+        N=nitrogen,
+        P=phosphorus,
+        K=potassium,
+        temperature=temperature,
+        humidity=humidity,
+        ph=ph,
+        rainfall=rainfall,
+        top_n=3,
+    )
 
-    # Confidence from class probabilities
-    proba = _crop_model.predict_proba(crop_features)[0]
-    confidence = int(round(max(proba) * 100))
+    recommended_crop = result["crop"]
+    confidence = result["confidence"]
+    top3 = [CropPrediction(**p) for p in result["top_predictions"]]
+    model_accuracy = result["model_accuracy"] or None
 
-    # ── Step 2: Yield prediction ─────────────────────────────────────────
-    yield_features = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall, crop_encoded]])
-    predicted_yield_val: float = round(float(_yield_model.predict(yield_features)[0]), 2)
-
-    # ── Step 3: Suitable crops + yield comparison ────────────────────────
-    top_n = min(4, len(_label_encoder.classes_))
-    top_indices = np.argsort(proba)[::-1][:top_n]
-    suitable_crops = [_label_encoder.inverse_transform([i])[0] for i in top_indices]
+    # ── Step 2: Yield prediction (legacy model, optional) ────────────────
+    predicted_yield_val: float = 0.0
+    suitable_crops: list[str] = [p.crop for p in top3]
     yield_comparison: list[float] = []
-    for idx in top_indices:
-        yf = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall, idx]])
-        yield_comparison.append(round(float(_yield_model.predict(yf)[0]), 2))
+
+    if _yield_model is not None and _legacy_label_encoder is not None:
+        try:
+            # Encode the crop name using the legacy encoder
+            crop_lower = recommended_crop.lower()
+            if crop_lower in _legacy_label_encoder.classes_:
+                crop_encoded = _legacy_label_encoder.transform([crop_lower])[0]
+            else:
+                crop_encoded = 0
+
+            yield_features = np.array([[nitrogen, phosphorus, potassium,
+                                        temperature, humidity, ph, rainfall,
+                                        crop_encoded]])
+            predicted_yield_val = round(float(_yield_model.predict(yield_features)[0]), 2)
+
+            # Yield for top crops
+            for p in top3:
+                c_lower = p.crop.lower()
+                if c_lower in _legacy_label_encoder.classes_:
+                    idx = _legacy_label_encoder.transform([c_lower])[0]
+                else:
+                    idx = 0
+                yf = np.array([[nitrogen, phosphorus, potassium,
+                                temperature, humidity, ph, rainfall, idx]])
+                yield_comparison.append(round(float(_yield_model.predict(yf)[0]), 2))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Yield prediction error: %s", exc)
+
+    if not yield_comparison:
+        yield_comparison = [0.0] * len(top3)
 
     return PredictResponse(
+        location=location,
         crop=recommended_crop,
         recommended_crop=recommended_crop,
         yield_=predicted_yield_val,
@@ -156,4 +219,6 @@ def predict_yield(
         confidence=confidence,
         suitable_crops=suitable_crops,
         yield_comparison=yield_comparison,
+        top_3_predictions=top3,
+        model_accuracy=model_accuracy,
     )
