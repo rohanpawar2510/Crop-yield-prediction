@@ -16,6 +16,11 @@ OPENWEATHER_BASE_URL: str = "https://api.openweathermap.org/data/2.5/weather"
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
+# Plant.id API — used for real plant disease detection (Phase 4)
+# Sign up at https://app.plant.id/ to obtain a key.
+PLANT_ID_API_KEY: str = os.getenv("PLANT_ID_API_KEY", "")
+PLANT_ID_API_URL: str = "https://api.plant.id/v2/health_assessment"
+
 # Paths to the trained ML model artifacts
 CROP_MODEL_PATH: str = os.getenv("CROP_MODEL_PATH", "models/crop_model.pkl")
 YIELD_MODEL_PATH: str = os.getenv("YIELD_MODEL_PATH", "models/yield_model.pkl")
