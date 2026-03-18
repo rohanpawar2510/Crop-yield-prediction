@@ -63,6 +63,7 @@ class DiseaseResponse(BaseModel):
     severity: str
     affected_area: str
     treatment: str
+    is_mock: bool = False
 
 
 # ─── POST /api/recommend ─────────────────────────────────────────────────────
