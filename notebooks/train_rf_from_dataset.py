@@ -2,7 +2,7 @@
 train_rf_from_dataset.py
 ========================
 Train a Random Forest Regressor for crop yield prediction using the
-hot-encoded dataset (``final dataset encoding.csv`` / ``.xlsx``).
+crop recommendation dataset (``Crop_recommendation.csv``).
 
 Usage
 -----
@@ -11,9 +11,9 @@ Usage
 
 Arguments (all optional)
 ------------------------
---dataset   PATH to the hot-encoded CSV/Excel file.
+--dataset   PATH to the CSV/Excel file.
             Defaults to searching the script's directory for
-            "final dataset encoding.csv" or "final_dataset_encoding.csv".
+            "Crop_recommendation.csv".
 --target    Name of the yield column to predict.
             Auto-detected if not provided.
 --output    Path for the saved model .pkl file.
@@ -37,6 +37,8 @@ RANDOM_SEED = 42
 
 # ── Candidate file names ───────────────────────────────────────────────────────
 _CANDIDATE_NAMES = [
+    "Crop_recommendation.csv",
+    "crop_recommendation.csv",
     "final dataset encoding.csv",
     "final_dataset_encoding.csv",
     "final dataset encoding.xlsx",
@@ -54,7 +56,7 @@ def _find_dataset(script_dir: str) -> str:
         if os.path.exists(path):
             return path
     raise FileNotFoundError(
-        "Dataset not found in {!r}. Place the file there or pass --dataset PATH.".format(script_dir)
+        "Dataset not found in {!r}. Place 'Crop_recommendation.csv' there or pass --dataset PATH.".format(script_dir)
     )
 
 

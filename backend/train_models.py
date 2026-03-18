@@ -1,10 +1,13 @@
 """
-train_models.py — Generate crop recommendation and yield prediction models.
+train_models.py — Train crop recommendation and yield prediction models.
 
-Creates two Random Forest models with synthetic training data based on
-realistic crop-growing conditions:
+Loads the real crop dataset (``Crop_recommendation.csv``) from the
+``notebooks/`` directory and trains two Random Forest models:
   1. crop_model.pkl  — Random Forest Classifier (predicts crop label)
   2. yield_model.pkl — Random Forest Regressor  (predicts yield in tons/hectare)
+
+Dataset columns expected:
+  N, P, K, temperature, humidity, ph, rainfall, label, yield
 
 Usage:
     cd backend
@@ -17,107 +20,144 @@ import os
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import accuracy_score, classification_report, mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.preprocessing import LabelEncoder
 import joblib
 
-# ─── Synthetic training data ─────────────────────────────────────────────────
-# Each entry: (crop, N_range, P_range, K_range, temp_range, humidity_range, ph_range, rainfall_range, yield_range)
-
-CROP_PROFILES = [
-    ("Rice",       (60, 100), (30, 60),  (30, 50),  (20, 35), (70, 95), (5.5, 7.0), (150, 300), (3.0, 5.5)),
-    ("Wheat",      (40, 80),  (30, 60),  (20, 40),  (12, 25), (50, 75), (6.0, 7.5), (50, 150),  (2.5, 4.5)),
-    ("Maize",      (60, 120), (35, 70),  (20, 50),  (18, 32), (55, 80), (5.5, 7.5), (60, 200),  (3.5, 6.0)),
-    ("Soybean",    (20, 60),  (40, 80),  (20, 50),  (20, 30), (60, 85), (6.0, 7.0), (60, 180),  (1.5, 3.5)),
-    ("Cotton",     (60, 120), (20, 50),  (20, 50),  (22, 35), (50, 75), (6.0, 8.0), (50, 150),  (1.5, 3.0)),
-    ("Sugarcane",  (80, 140), (40, 80),  (30, 60),  (22, 36), (70, 90), (5.5, 7.5), (100, 250), (50, 80)),
-    ("Potato",     (40, 80),  (50, 90),  (60, 120), (12, 22), (60, 80), (5.0, 6.5), (50, 150),  (15, 30)),
-    ("Tomato",     (50, 100), (40, 80),  (40, 80),  (18, 30), (60, 85), (5.5, 7.0), (50, 150),  (20, 40)),
-    ("Banana",     (80, 120), (30, 60),  (40, 80),  (24, 35), (70, 95), (5.5, 7.0), (100, 250), (15, 35)),
-    ("Mango",      (40, 80),  (20, 50),  (30, 60),  (24, 38), (50, 80), (5.5, 7.5), (50, 200),  (5, 15)),
-    ("Groundnut",  (20, 40),  (30, 60),  (20, 40),  (22, 32), (55, 80), (6.0, 7.0), (40, 120),  (1.0, 2.5)),
-    ("Jute",       (60, 100), (20, 50),  (30, 60),  (24, 36), (75, 95), (6.0, 7.5), (150, 300), (2.0, 3.5)),
-]
-
-SAMPLES_PER_CROP = 200
 RANDOM_SEED = 42
 
+# ─── Dataset location ────────────────────────────────────────────────────────
+# Path relative to this file: ../notebooks/Crop_recommendation.csv
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+_DATASET_PATH = os.path.join(_BACKEND_DIR, "..", "notebooks", "Crop_recommendation.csv")
 
-def _generate_data() -> pd.DataFrame:
-    """Generate synthetic training data for all crops."""
-    rng = np.random.default_rng(RANDOM_SEED)
-    rows: list[dict] = []
+# Column names in the dataset
+_FEATURE_COLS = ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"]
+_LABEL_COL = "label"
+_YIELD_COL = "yield"
 
-    for crop, n_r, p_r, k_r, t_r, h_r, ph_r, rain_r, y_r in CROP_PROFILES:
-        for _ in range(SAMPLES_PER_CROP):
-            n = rng.uniform(*n_r)
-            p = rng.uniform(*p_r)
-            k = rng.uniform(*k_r)
-            temp = rng.uniform(*t_r)
-            hum = rng.uniform(*h_r)
-            ph = rng.uniform(*ph_r)
-            rain = rng.uniform(*rain_r)
+# Internal feature names used by the prediction service
+_INTERNAL_FEATURE_NAMES = ["nitrogen", "phosphorus", "potassium", "temperature", "humidity", "ph", "rainfall"]
 
-            # Yield correlates with feature quality + some noise
-            base_yield = rng.uniform(*y_r)
-            noise = rng.normal(0, (y_r[1] - y_r[0]) * 0.05)
-            crop_yield = max(y_r[0] * 0.5, base_yield + noise)
 
-            rows.append({
-                "nitrogen": round(n, 1),
-                "phosphorus": round(p, 1),
-                "potassium": round(k, 1),
-                "temperature": round(temp, 1),
-                "humidity": round(hum, 1),
-                "ph": round(ph, 2),
-                "rainfall": round(rain, 1),
-                "crop": crop,
-                "yield": round(crop_yield, 2),
-            })
-
-    return pd.DataFrame(rows)
+def _load_dataset(path: str) -> pd.DataFrame:
+    """Load the crop recommendation dataset from a CSV file."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Dataset not found at {path!r}. "
+            "Ensure 'Crop_recommendation.csv' is present in the notebooks/ directory."
+        )
+    df = pd.read_csv(path)
+    print(f"Dataset loaded: {path}")
+    print(f"  Shape       : {df.shape}")
+    print(f"  Columns     : {list(df.columns)}")
+    print(f"  Crops ({df[_LABEL_COL].nunique()}): {sorted(df[_LABEL_COL].unique().tolist())}")
+    missing = df.isnull().sum()
+    if missing.any():
+        print(f"  Missing values:\n{missing[missing > 0]}")
+    else:
+        print("  Missing values: none")
+    return df
 
 
 def train_and_save() -> None:
-    """Train both models and save them as .pkl files."""
-    df = _generate_data()
+    """Load the real dataset, train both models and save them as .pkl files."""
+    df = _load_dataset(_DATASET_PATH)
+
+    # ── Rename dataset columns to internal names used by the service ────
+    col_map = {
+        "N": "nitrogen",
+        "P": "phosphorus",
+        "K": "potassium",
+        _LABEL_COL: "crop",
+    }
+    df = df.rename(columns=col_map)
+
+    # Drop rows with missing values in required columns
+    required = _INTERNAL_FEATURE_NAMES + ["crop", _YIELD_COL]
+    before = len(df)
+    df = df.dropna(subset=required).reset_index(drop=True)
+    if len(df) < before:
+        print(f"  Dropped {before - len(df)} rows with missing values.")
 
     # Encode crop labels
     le = LabelEncoder()
     df["crop_encoded"] = le.fit_transform(df["crop"])
 
-    features_crop = ["nitrogen", "phosphorus", "potassium", "temperature", "humidity", "ph", "rainfall"]
+    features_crop = _INTERNAL_FEATURE_NAMES
     features_yield = features_crop + ["crop_encoded"]
 
     X_crop = df[features_crop].values
     y_crop = df["crop_encoded"].values
 
     X_yield = df[features_yield].values
-    y_yield = df["yield"].values
+    y_yield = df[_YIELD_COL].values
+
+    # ── Train / test split ───────────────────────────────────────────────
+    X_crop_train, X_crop_test, y_crop_train, y_crop_test = train_test_split(
+        X_crop, y_crop, test_size=0.20, random_state=RANDOM_SEED, stratify=y_crop
+    )
+    X_yield_train, X_yield_test, y_yield_train, y_yield_test = train_test_split(
+        X_yield, y_yield, test_size=0.20, random_state=RANDOM_SEED
+    )
+
+    print(f"\nTrain size: {len(X_crop_train)} | Test size: {len(X_crop_test)}")
 
     # ── Crop Recommendation Model ────────────────────────────────────────
+    print("\n=== Training Crop Recommendation Model ===")
     crop_model = RandomForestClassifier(
-        n_estimators=100,
-        max_depth=15,
+        n_estimators=200,
+        max_depth=None,
+        min_samples_leaf=1,
+        max_features="sqrt",
         random_state=RANDOM_SEED,
         n_jobs=-1,
     )
-    crop_model.fit(X_crop, y_crop)
-    accuracy = crop_model.score(X_crop, y_crop)
-    print(f"Crop model training accuracy: {accuracy:.2%}")
+    crop_model.fit(X_crop_train, y_crop_train)
+
+    train_acc = accuracy_score(y_crop_train, crop_model.predict(X_crop_train))
+    test_acc = accuracy_score(y_crop_test, crop_model.predict(X_crop_test))
+    print(f"  Train accuracy : {train_acc:.2%}")
+    print(f"  Test  accuracy : {test_acc:.2%}")
+
+    cv_crop = cross_val_score(crop_model, X_crop_train, y_crop_train, cv=5, scoring="accuracy", n_jobs=-1)
+    print(f"  5-Fold CV acc  : {cv_crop.round(4)} → mean={cv_crop.mean():.4f} ± {cv_crop.std():.4f}")
+
+    print("\n  Classification report (test set):")
+    print(
+        classification_report(
+            y_crop_test,
+            crop_model.predict(X_crop_test),
+            target_names=le.classes_,
+            zero_division=0,
+        )
+    )
 
     # ── Yield Prediction Model ───────────────────────────────────────────
+    print("=== Training Yield Prediction Model ===")
     yield_model = RandomForestRegressor(
-        n_estimators=100,
-        max_depth=15,
+        n_estimators=200,
+        max_depth=None,
+        min_samples_leaf=2,
+        max_features="sqrt",
         random_state=RANDOM_SEED,
         n_jobs=-1,
     )
-    yield_model.fit(X_yield, y_yield)
-    r2 = yield_model.score(X_yield, y_yield)
-    print(f"Yield model training R²: {r2:.4f}")
+    yield_model.fit(X_yield_train, y_yield_train)
+
+    for label, X_s, y_s in [("Train", X_yield_train, y_yield_train), ("Test ", X_yield_test, y_yield_test)]:
+        y_pred = yield_model.predict(X_s)
+        r2   = r2_score(y_s, y_pred)
+        mae  = mean_absolute_error(y_s, y_pred)
+        rmse = float(np.sqrt(mean_squared_error(y_s, y_pred)))
+        print(f"  {label}  R²={r2:.4f}  MAE={mae:.4f}  RMSE={rmse:.4f}")
+
+    cv_yield = cross_val_score(yield_model, X_yield_train, y_yield_train, cv=5, scoring="r2", n_jobs=-1)
+    print(f"  5-Fold CV R²   : {cv_yield.round(4)} → mean={cv_yield.mean():.4f} ± {cv_yield.std():.4f}")
 
     # ── Save artifacts ───────────────────────────────────────────────────
-    models_dir = os.path.join(os.path.dirname(__file__), "models")
+    models_dir = os.path.join(_BACKEND_DIR, "models")
     os.makedirs(models_dir, exist_ok=True)
 
     crop_path = os.path.join(models_dir, "crop_model.pkl")
@@ -131,7 +171,7 @@ def train_and_save() -> None:
     print(f"\nSaved: {crop_path}")
     print(f"Saved: {yield_path}")
     print(f"Saved: {encoder_path}")
-    print(f"\nCrop classes: {list(le.classes_)}")
+    print(f"\nCrop classes ({len(le.classes_)}): {list(le.classes_)}")
 
 
 if __name__ == "__main__":
