@@ -54,7 +54,9 @@ RANDOM_SEED = 42
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_BACKEND_DIR)
 
-# Primary dataset: aggressively cleaned by ultimate_data_cleaner.py
+# Primary dataset: new cleaned dataset (highest priority — use when available)
+_CLEANED_DATASET = os.path.join(_REPO_ROOT, "notebooks", "crop_cleaned.csv")
+# Fallback dataset: aggressively cleaned by ultimate_data_cleaner.py
 _FINAL_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation_final.csv")
 # Fallback chain: improved → single authoritative source dataset
 _IMPROVED_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation_improved.csv")
@@ -100,6 +102,7 @@ _RF_PARAMS: dict = dict(
 
 def _pick_dataset() -> str:
     for path, label in [
+        (_CLEANED_DATASET,  "cleaned"),
         (_FINAL_DATASET,    "final (ultimate-cleaned)"),
         (_IMPROVED_DATASET, "improved"),
         (_FALLBACK_DATASET, "standard"),
@@ -152,10 +155,10 @@ def _ensure_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
 def train_and_save() -> None:
     # ── Load ─────────────────────────────────────────────────────────────────
     dataset_path, dataset_label = _pick_dataset()
-    if dataset_label != "final (ultimate-cleaned)":
+    if dataset_label != "cleaned":
         print(
-            f"[WARNING] Final dataset not found — using {dataset_label!r}.\n"
-            f"          For best accuracy run:  python scripts/ultimate_data_cleaner.py\n"
+            f"[WARNING] Cleaned dataset not found — using {dataset_label!r}.\n"
+            f"          For best accuracy ensure notebooks/crop_cleaned.csv is present.\n"
             f"          Or use canonical script: python backend/train_models.py"
         )
 
