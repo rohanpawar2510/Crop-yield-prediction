@@ -61,7 +61,7 @@ from feature_engineering import add_features  # noqa: E402
 # ---------------------------------------------------------------------------
 _REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
 
-_DEFAULT_INPUT = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation.csv")
+_DEFAULT_INPUT = os.path.join(_REPO_ROOT, "notebooks", "Crop_Final_Updated (1).csv")
 _DEFAULT_OUTPUT = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation_final.csv")
 
 MIN_SAMPLES_PER_CROP: int = 100   # crops below this threshold are dropped
@@ -83,8 +83,12 @@ _STRICT_RANGES: dict[str, tuple[float, float]] = {
     "yield":       (0.0, 100000.0),
 }
 
-# Columns that must be present for the pipeline to proceed
-_REQUIRED_COLS = list(_STRICT_RANGES.keys()) + [_LABEL_COL, _YIELD_COL]
+# Columns that must be present for the pipeline to proceed (humidity is
+# estimated from temperature and rainfall when absent in the source CSV)
+_REQUIRED_COLS_BASE = ["N", "P", "K", "temperature", "ph", "rainfall",
+                       "yield", _LABEL_COL]
+# humidity is included in validation when present, but estimated if missing
+_REQUIRED_COLS = _REQUIRED_COLS_BASE
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +352,15 @@ def run_pipeline(
     print("=" * 68)
 
     df = _step1_load(input_path)
+
+    # Estimate humidity when absent (source CSV has no humidity column)
+    if "humidity" not in df.columns:
+        df["humidity"] = np.clip(
+            40.0 + 0.05 * df["rainfall"] + (30.0 - df["temperature"]),
+            20.0, 100.0,
+        )
+        print("[prepare] humidity estimated from temperature and rainfall.")
+
     df = _step2_remove_nulls(df)
     df = _step3_range_validation(df)
     df = _step4_filter_crops(df, min_samples)

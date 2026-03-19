@@ -40,8 +40,10 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     Parameters
     ----------
     df:
-        DataFrame that must contain columns N, P, K, temperature,
-        humidity, ph, and rainfall.
+        DataFrame that must contain columns for nitrogen (or N), phosphorus
+        (or P), potassium (or K), temperature, ph, and rainfall.  The
+        ``humidity`` column is optional: if absent it is estimated from
+        temperature and rainfall.
 
     Returns
     -------
@@ -50,18 +52,30 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         columns: NPK_total, NPK_ratio, Climate_score,
         Temp_humidity_interaction, Soil_quality_score.
     """
-    required = {"N", "P", "K", "temperature", "humidity", "ph", "rainfall"}
-    missing = required - set(df.columns)
+    out = df.copy()
+
+    # Accept both raw (N/P/K) and renamed (nitrogen/phosphorus/potassium) columns
+    col_n = "N" if "N" in out.columns else "nitrogen"
+    col_p = "P" if "P" in out.columns else "phosphorus"
+    col_k = "K" if "K" in out.columns else "potassium"
+
+    required = {col_n, col_p, col_k, "temperature", "ph", "rainfall"}
+    missing = required - set(out.columns)
     if missing:
         raise ValueError(f"Input DataFrame is missing required columns: {missing}")
 
-    out = df.copy()
+    # Estimate humidity if not provided (source CSV has no humidity column)
+    if "humidity" not in out.columns:
+        out["humidity"] = np.clip(
+            40.0 + 0.05 * out["rainfall"] + (30.0 - out["temperature"]),
+            20.0, 100.0,
+        )
 
     # 1. NPK_total — total nutrient load
-    out["NPK_total"] = out["N"] + out["P"] + out["K"]
+    out["NPK_total"] = out[col_n] + out[col_p] + out[col_k]
 
     # 2. NPK_ratio — nitrogen balance relative to secondary nutrients
-    out["NPK_ratio"] = out["N"] / (out["P"] + out["K"] + 1e-6)
+    out["NPK_ratio"] = out[col_n] / (out[col_p] + out[col_k] + 1e-6)
 
     # 3. Climate_score — weighted climate index
     out["Climate_score"] = (
@@ -94,7 +108,7 @@ def _parse_args() -> argparse.Namespace:
             os.path.dirname(os.path.abspath(__file__)),
             "..",
             "notebooks",
-            "Crop_recommendation.csv",
+            "Crop_Final_Updated (1).csv",
         ),
         help="Path to the input CSV file.",
     )

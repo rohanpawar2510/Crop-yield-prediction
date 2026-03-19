@@ -1,13 +1,32 @@
 """
-train_models.py — Train crop recommendation and yield prediction models.
+train_models.py — Canonical training script for crop recommendation.
 
-Loads the real crop dataset (``Crop_recommendation.csv``) from the
-``notebooks/`` directory and trains two Random Forest models:
-  1. crop_model.pkl  — Random Forest Classifier (predicts crop label)
-  2. yield_model.pkl — Random Forest Regressor  (predicts yield in tons/hectare)
+Single authoritative source dataset: notebooks/Crop_Final_Updated (1).csv
 
-Dataset columns expected:
-  N, P, K, temperature, humidity, ph, rainfall, label, yield
+Data cleaning pipeline (inline):
+  1. Rename columns (N→nitrogen, P→phosphorus, K→potassium).
+  2. Add humidity estimate from temperature and rainfall (source has no humidity).
+  3. Remove ambiguous rows where the same feature values map to many crops.
+  4. Remove crops with fewer than MIN_SAMPLES_PER_CROP samples.
+  5. Remove yield outliers beyond OUTLIER_SIGMA standard deviations per crop.
+  6. Cap at MAX_SAMPLES_PER_CROP rows per crop (class balance).
+  7. Add five engineered features.
+
+Training:
+  - Split train/test FIRST (20 % held-out, stratified).
+  - StandardScaler embedded in a Pipeline so CV / inference are always leak-free.
+  - RandomForestClassifier (n_estimators=300, class_weight=balanced).
+  - Reports train accuracy, test accuracy, 5-fold CV score, and classification
+    report.
+
+Artefacts saved to backend/models/:
+  crop_model.pkl       — sklearn Pipeline (StandardScaler + RandomForest)
+  yield_model.pkl      — RandomForestRegressor
+  label_encoder.pkl    — LabelEncoder for crop names
+  scaler_yield.pkl     — StandardScaler fitted on yield training split only
+  feature_cols.pkl     — {'crop': [...], 'yield': [...]} feature column lists
+
+Expected accuracy: ≥ 90 % crop classification on the test set.
 
 Usage:
     cd backend
@@ -16,162 +35,352 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import os
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import accuracy_score, classification_report, mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+)
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 import joblib
 
 RANDOM_SEED = 42
+MIN_SAMPLES_PER_CROP = 100   # crops below this threshold are dropped
+MAX_SAMPLES_PER_CROP = 1000  # hard cap per crop for class balance
+OUTLIER_SIGMA = 2.5          # yield outlier threshold in standard deviations
 
 # ─── Dataset location ────────────────────────────────────────────────────────
-# Path relative to this file: ../notebooks/Crop_recommendation.csv
+# Single authoritative source; script fails with a clear error if missing.
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-_DATASET_PATH = os.path.join(_BACKEND_DIR, "..", "notebooks", "Crop_recommendation.csv")
+_REPO_ROOT = os.path.dirname(_BACKEND_DIR)
+_DATASET_PATH = os.path.join(_REPO_ROOT, "notebooks", "Crop_Final_Updated (1).csv")
 
-# Column names in the dataset
-_FEATURE_COLS = ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"]
 _LABEL_COL = "label"
 _YIELD_COL = "yield"
 
-# Internal feature names used by the prediction service
-_INTERNAL_FEATURE_NAMES = ["nitrogen", "phosphorus", "potassium", "temperature", "humidity", "ph", "rainfall"]
+_BASE_FEATURES = [
+    "nitrogen", "phosphorus", "potassium",
+    "temperature", "humidity", "ph", "rainfall",
+]
+_ENGINEERED_FEATURES = [
+    "NPK_total",
+    "NPK_ratio",
+    "Climate_score",
+    "Temp_humidity_interaction",
+    "Soil_quality_score",
+]
 
 
-def _load_dataset(path: str) -> pd.DataFrame:
-    """Load the crop recommendation dataset from a CSV file."""
-    if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"Dataset not found at {path!r}. "
-            "Ensure 'Crop_recommendation.csv' is present in the notebooks/ directory."
-        )
-    df = pd.read_csv(path)
-    print(f"Dataset loaded: {path}")
-    print(f"  Shape       : {df.shape}")
-    print(f"  Columns     : {list(df.columns)}")
-    print(f"  Crops ({df[_LABEL_COL].nunique()}): {sorted(df[_LABEL_COL].unique().tolist())}")
-    missing = df.isnull().sum()
-    if missing.any():
-        print(f"  Missing values:\n{missing[missing > 0]}")
-    else:
-        print("  Missing values: none")
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _estimate_humidity(df: pd.DataFrame) -> pd.Series:
+    """Estimate relative humidity (%) from temperature and rainfall.
+
+    Used because the source dataset has no humidity column.  At inference time
+    the prediction service supplies real humidity from the weather API, keeping
+    both on a compatible scale.
+    """
+    return np.clip(
+        40.0 + 0.05 * df["rainfall"] + (30.0 - df["temperature"]),
+        20.0, 100.0,
+    )
+
+
+def _add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of *df* with five additional engineered columns."""
+    df = df.copy()
+    df["NPK_total"] = df["nitrogen"] + df["phosphorus"] + df["potassium"]
+    df["NPK_ratio"] = df["nitrogen"] / (df["phosphorus"] + df["potassium"] + 1e-6)
+    df["Climate_score"] = (
+        0.4 * df["temperature"]
+        + 0.3 * df["humidity"]
+        + 0.3 * (df["rainfall"] / 100.0)
+    )
+    df["Temp_humidity_interaction"] = df["temperature"] * df["humidity"]
+    df["Soil_quality_score"] = 10.0 * np.exp(-0.5 * ((df["ph"] - 6.5) / 0.8) ** 2)
     return df
 
 
+def _remove_ambiguous_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows whose feature combination maps to more than one crop label.
+
+    The source dataset contains a 'district default' feature vector shared by
+    many crops simultaneously.  These rows are not informative for per-crop
+    classification and are removed before training.
+    """
+    feat_cols = ["nitrogen", "phosphorus", "potassium", "temperature", "ph", "rainfall"]
+    n_labels_per_combo = df.groupby(feat_cols)[_LABEL_COL].transform("nunique")
+    n_before = len(df)
+    df = df[n_labels_per_combo == 1].reset_index(drop=True)
+    n_removed = n_before - len(df)
+    if n_removed:
+        print(
+            f"[clean] Removed {n_removed:,} ambiguous rows "
+            f"(feature combos shared by multiple crops)."
+        )
+    return df
+
+
+def _clean_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply cleaning pipeline: filter rare crops, remove outliers, balance."""
+    # Step 1: Remove crops with insufficient samples
+    counts = df[_LABEL_COL].value_counts()
+    valid_crops = counts[counts >= MIN_SAMPLES_PER_CROP].index
+    removed_crops = sorted(set(counts.index) - set(valid_crops))
+    n_before = len(df)
+    df = df[df[_LABEL_COL].isin(valid_crops)].reset_index(drop=True)
+    if removed_crops:
+        print(
+            f"[clean] Dropped {len(removed_crops)} rare crops "
+            f"(< {MIN_SAMPLES_PER_CROP} samples): {removed_crops}  "
+            f"({n_before - len(df):,} rows removed)"
+        )
+
+    # Step 2: Remove per-crop yield outliers (> OUTLIER_SIGMA σ from mean)
+    keep_mask = pd.Series(True, index=df.index)
+    for _, group in df.groupby(_LABEL_COL):
+        std_y = group[_YIELD_COL].std()
+        if std_y > 0:
+            outlier_mask = (
+                (group[_YIELD_COL] - group[_YIELD_COL].mean()).abs()
+                > OUTLIER_SIGMA * std_y
+            )
+            keep_mask.loc[group.index[outlier_mask]] = False
+    n_before = len(df)
+    df = df[keep_mask].reset_index(drop=True)
+    print(f"[clean] Removed {n_before - len(df):,} yield outliers (> {OUTLIER_SIGMA}σ per crop).")
+
+    # Step 3: Balance — cap at MAX_SAMPLES_PER_CROP rows per crop
+    parts = []
+    for _, group in df.groupby(_LABEL_COL):
+        if len(group) > MAX_SAMPLES_PER_CROP:
+            parts.append(group.sample(n=MAX_SAMPLES_PER_CROP, random_state=RANDOM_SEED))
+        else:
+            parts.append(group)
+    df = (
+        pd.concat(parts, ignore_index=True)
+        .sample(frac=1, random_state=RANDOM_SEED)
+        .reset_index(drop=True)
+    )
+    print(f"[clean] After balancing: {len(df):,} rows, {df[_LABEL_COL].nunique()} crops.")
+    return df
+
+
+# ─── Training ─────────────────────────────────────────────────────────────────
+
 def train_and_save() -> None:
-    """Load the real dataset, train both models and save them as .pkl files."""
-    df = _load_dataset(_DATASET_PATH)
+    """Load source dataset, clean, train, evaluate, and save artefacts."""
 
-    # ── Rename dataset columns to internal names used by the service ────
-    col_map = {
-        "N": "nitrogen",
-        "P": "phosphorus",
-        "K": "potassium",
-        _LABEL_COL: "crop",
-    }
-    df = df.rename(columns=col_map)
+    # ── Load ─────────────────────────────────────────────────────────────────
+    if not os.path.exists(_DATASET_PATH):
+        raise FileNotFoundError(
+            f"Dataset not found: {_DATASET_PATH!r}\n"
+            "Ensure 'Crop_Final_Updated (1).csv' is present in the notebooks/ directory."
+        )
+    df = pd.read_csv(_DATASET_PATH)
+    print(f"[load] {_DATASET_PATH}")
+    print(f"       shape={df.shape}  crops={df[_LABEL_COL].nunique()}")
 
-    # Drop rows with missing values in required columns
-    required = _INTERNAL_FEATURE_NAMES + ["crop", _YIELD_COL]
-    before = len(df)
-    df = df.dropna(subset=required).reset_index(drop=True)
-    if len(df) < before:
-        print(f"  Dropped {before - len(df)} rows with missing values.")
+    # ── Rename source column names to internal names ──────────────────────────
+    df = df.rename(columns={"N": "nitrogen", "P": "phosphorus", "K": "potassium"})
 
-    # Encode crop labels
+    # ── Add humidity estimate (source CSV has no humidity column) ─────────────
+    df["humidity"] = _estimate_humidity(df)
+    print(
+        f"[prepare] Estimated humidity: "
+        f"mean={df['humidity'].mean():.1f}  std={df['humidity'].std():.1f}"
+    )
+
+    # ── Remove ambiguous feature combos ──────────────────────────────────────
+    df = _remove_ambiguous_rows(df)
+
+    # ── Clean: rare crops, outliers, balance ─────────────────────────────────
+    df = _clean_dataset(df)
+
+    # ── Add engineered features ───────────────────────────────────────────────
+    df = _add_engineered_features(df)
+
+    # ── Encode crop labels ────────────────────────────────────────────────────
     le = LabelEncoder()
-    df["crop_encoded"] = le.fit_transform(df["crop"])
+    df["crop_encoded"] = le.fit_transform(df[_LABEL_COL].values)
+    print(f"\nCrop classes ({len(le.classes_)}): {list(le.classes_)}")
 
-    features_crop = _INTERNAL_FEATURE_NAMES
-    features_yield = features_crop + ["crop_encoded"]
+    # ── Build feature matrices ────────────────────────────────────────────────
+    feature_cols_crop = _BASE_FEATURES + _ENGINEERED_FEATURES
+    feature_cols_yield = feature_cols_crop + ["crop_encoded"]
 
-    X_crop = df[features_crop].values
+    X_crop = df[feature_cols_crop].values
     y_crop = df["crop_encoded"].values
-
-    X_yield = df[features_yield].values
+    X_yield = df[feature_cols_yield].values
     y_yield = df[_YIELD_COL].values
 
-    # ── Train / test split ───────────────────────────────────────────────
+    # ── Train / test split (BEFORE fitting any preprocessor) ─────────────────
     X_crop_train, X_crop_test, y_crop_train, y_crop_test = train_test_split(
-        X_crop, y_crop, test_size=0.20, random_state=RANDOM_SEED, stratify=y_crop
+        X_crop, y_crop,
+        test_size=0.20, random_state=RANDOM_SEED, stratify=y_crop,
     )
     X_yield_train, X_yield_test, y_yield_train, y_yield_test = train_test_split(
-        X_yield, y_yield, test_size=0.20, random_state=RANDOM_SEED
+        X_yield, y_yield,
+        test_size=0.20, random_state=RANDOM_SEED,
     )
+    print(f"\nTrain size: {len(X_crop_train):,} | Test size: {len(X_crop_test):,}")
+    print(f"Crop features ({len(feature_cols_crop)}): {feature_cols_crop}")
 
-    print(f"\nTrain size: {len(X_crop_train)} | Test size: {len(X_crop_test)}")
+    # =========================================================================
+    # Crop Recommendation Model
+    # Pipeline embeds the scaler so CV / inference are always leak-free.
+    # =========================================================================
+    print("\n" + "=" * 68)
+    print("  Training Crop Recommendation Model")
+    print("=" * 68)
 
-    # ── Crop Recommendation Model ────────────────────────────────────────
-    print("\n=== Training Crop Recommendation Model ===")
-    crop_model = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=None,
-        min_samples_leaf=1,
-        max_features="sqrt",
-        random_state=RANDOM_SEED,
-        n_jobs=-1,
-    )
-    crop_model.fit(X_crop_train, y_crop_train)
+    crop_pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", RandomForestClassifier(
+            n_estimators=300,
+            max_depth=None,
+            min_samples_leaf=1,
+            max_features="sqrt",
+            class_weight="balanced",
+            random_state=RANDOM_SEED,
+            n_jobs=-1,
+        )),
+    ])
+    crop_pipeline.fit(X_crop_train, y_crop_train)
 
-    train_acc = accuracy_score(y_crop_train, crop_model.predict(X_crop_train))
-    test_acc = accuracy_score(y_crop_test, crop_model.predict(X_crop_test))
+    train_acc = accuracy_score(y_crop_train, crop_pipeline.predict(X_crop_train))
+    test_acc = accuracy_score(y_crop_test, crop_pipeline.predict(X_crop_test))
     print(f"  Train accuracy : {train_acc:.2%}")
     print(f"  Test  accuracy : {test_acc:.2%}")
 
-    cv_crop = cross_val_score(crop_model, X_crop_train, y_crop_train, cv=5, scoring="accuracy", n_jobs=-1)
+    if test_acc < 0.90:
+        print(f"  ⚠  Test accuracy {test_acc:.2%} is below the 90 % target.")
+
+    cv_crop = cross_val_score(
+        crop_pipeline, X_crop, y_crop,
+        cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED),
+        scoring="accuracy", n_jobs=-1,
+    )
     print(f"  5-Fold CV acc  : {cv_crop.round(4)} → mean={cv_crop.mean():.4f} ± {cv_crop.std():.4f}")
 
     print("\n  Classification report (test set):")
     print(
         classification_report(
             y_crop_test,
-            crop_model.predict(X_crop_test),
+            crop_pipeline.predict(X_crop_test),
             target_names=le.classes_,
             zero_division=0,
         )
     )
 
-    # ── Yield Prediction Model ───────────────────────────────────────────
-    print("=== Training Yield Prediction Model ===")
+    # =========================================================================
+    # Yield Prediction Model
+    # Scaler fitted on training split only; saved separately for inference.
+    # =========================================================================
+    print("=" * 68)
+    print("  Training Yield Prediction Model")
+    print("=" * 68)
+
+    scaler_yield = StandardScaler()
+    X_yield_train_sc = scaler_yield.fit_transform(X_yield_train)
+    X_yield_test_sc = scaler_yield.transform(X_yield_test)
+
     yield_model = RandomForestRegressor(
-        n_estimators=200,
+        n_estimators=300,
         max_depth=None,
         min_samples_leaf=2,
         max_features="sqrt",
         random_state=RANDOM_SEED,
         n_jobs=-1,
     )
-    yield_model.fit(X_yield_train, y_yield_train)
+    yield_model.fit(X_yield_train_sc, y_yield_train)
 
-    for label, X_s, y_s in [("Train", X_yield_train, y_yield_train), ("Test ", X_yield_test, y_yield_test)]:
+    for split_lbl, X_s, y_s in [
+        ("Train", X_yield_train_sc, y_yield_train),
+        ("Test ", X_yield_test_sc, y_yield_test),
+    ]:
         y_pred = yield_model.predict(X_s)
-        r2   = r2_score(y_s, y_pred)
-        mae  = mean_absolute_error(y_s, y_pred)
+        r2 = r2_score(y_s, y_pred)
+        mae = mean_absolute_error(y_s, y_pred)
         rmse = float(np.sqrt(mean_squared_error(y_s, y_pred)))
-        print(f"  {label}  R²={r2:.4f}  MAE={mae:.4f}  RMSE={rmse:.4f}")
+        print(f"  {split_lbl}  R²={r2:.4f}  MAE={mae:.4f}  RMSE={rmse:.4f}")
 
-    cv_yield = cross_val_score(yield_model, X_yield_train, y_yield_train, cv=5, scoring="r2", n_jobs=-1)
+    # CV for yield uses a Pipeline per fold to prevent leakage
+    yield_cv_pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("reg", RandomForestRegressor(
+            n_estimators=300, max_depth=None, min_samples_leaf=2,
+            max_features="sqrt", random_state=RANDOM_SEED, n_jobs=-1,
+        )),
+    ])
+    cv_yield = cross_val_score(
+        yield_cv_pipeline, X_yield, y_yield, cv=5, scoring="r2", n_jobs=-1,
+    )
     print(f"  5-Fold CV R²   : {cv_yield.round(4)} → mean={cv_yield.mean():.4f} ± {cv_yield.std():.4f}")
 
-    # ── Save artifacts ───────────────────────────────────────────────────
+    # ── Save artefacts ────────────────────────────────────────────────────────
     models_dir = os.path.join(_BACKEND_DIR, "models")
     os.makedirs(models_dir, exist_ok=True)
 
-    crop_path = os.path.join(models_dir, "crop_model.pkl")
-    yield_path = os.path.join(models_dir, "yield_model.pkl")
-    encoder_path = os.path.join(models_dir, "label_encoder.pkl")
+    artefacts: dict = {
+        "crop_model.pkl":    crop_pipeline,   # Pipeline: StandardScaler + RF
+        "yield_model.pkl":   yield_model,
+        "label_encoder.pkl": le,
+        "scaler_yield.pkl":  scaler_yield,
+        "feature_cols.pkl":  {
+            "crop":  feature_cols_crop,
+            "yield": feature_cols_yield,
+        },
+    }
 
-    joblib.dump(crop_model, crop_path)
-    joblib.dump(yield_model, yield_path)
-    joblib.dump(le, encoder_path)
+    for filename, obj in artefacts.items():
+        out_path = os.path.join(models_dir, filename)
+        joblib.dump(obj, out_path)
+        print(f"Saved: {out_path}")
 
-    print(f"\nSaved: {crop_path}")
-    print(f"Saved: {yield_path}")
-    print(f"Saved: {encoder_path}")
-    print(f"\nCrop classes ({len(le.classes_)}): {list(le.classes_)}")
+    # Save metadata so CropPredictor.model_accuracy can return the real value
+    meta = {
+        "algorithm": "Pipeline(StandardScaler + RandomForestClassifier)",
+        "train_accuracy": round(train_acc * 100, 4),
+        "test_accuracy": round(test_acc * 100, 4),
+        "cv_accuracy_mean": round(float(cv_crop.mean()) * 100, 4),
+        "cv_accuracy_std": round(float(cv_crop.std()) * 100, 4),
+        "n_classes": int(len(le.classes_)),
+        "crop_classes": list(le.classes_),
+        "feature_names": feature_cols_crop,
+        "dataset": os.path.join("notebooks", "Crop_Final_Updated (1).csv"),
+        "random_seed": RANDOM_SEED,
+    }
+    meta_path = os.path.join(models_dir, "metadata.json")
+    with open(meta_path, "w") as fh:
+        json.dump(meta, fh, indent=2)
+    print(f"Saved: {meta_path}")
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    print("\n" + "=" * 68)
+    print("  ✓ TRAINING COMPLETE — SUMMARY")
+    print("=" * 68)
+    print(f"  Dataset           : {_DATASET_PATH}")
+    print(f"  Rows used         : {len(df):,}")
+    print(f"  Crop classes      : {len(le.classes_)}")
+    print(f"  Crop train acc    : {train_acc:.2%}")
+    print(f"  Crop test acc     : {test_acc:.2%}")
+    print(f"  Crop 5-fold CV    : {cv_crop.mean():.4f} ± {cv_crop.std():.4f}")
+    print(f"  Yield 5-fold R²   : {cv_yield.mean():.4f} ± {cv_yield.std():.4f}")
+    if test_acc >= 0.90:
+        print("  ✓ Accuracy target (≥ 90 %) MET")
+    else:
+        print(f"  ✗ Accuracy target (≥ 90 %) NOT MET — see warnings above")
+    print("=" * 68)
 
 
 if __name__ == "__main__":

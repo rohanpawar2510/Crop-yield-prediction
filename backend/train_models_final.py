@@ -42,6 +42,7 @@ from sklearn.metrics import (
     r2_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import joblib
 
@@ -55,9 +56,9 @@ _REPO_ROOT = os.path.dirname(_BACKEND_DIR)
 
 # Primary dataset: aggressively cleaned by ultimate_data_cleaner.py
 _FINAL_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation_final.csv")
-# Fallback chain: improved → standard
+# Fallback chain: improved → single authoritative source dataset
 _IMPROVED_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation_improved.csv")
-_FALLBACK_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation.csv")
+_FALLBACK_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_Final_Updated (1).csv")
 
 # Add scripts/ to path so feature_engineering is importable
 _SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts")
@@ -154,7 +155,8 @@ def train_and_save() -> None:
     if dataset_label != "final (ultimate-cleaned)":
         print(
             f"[WARNING] Final dataset not found — using {dataset_label!r}.\n"
-            f"          For best accuracy run:  python scripts/ultimate_data_cleaner.py"
+            f"          For best accuracy run:  python scripts/ultimate_data_cleaner.py\n"
+            f"          Or use canonical script: python backend/train_models.py"
         )
 
     df = _load_dataset(dataset_path, dataset_label)
@@ -162,6 +164,14 @@ def train_and_save() -> None:
     # ── Rename raw column names to internal names ─────────────────────────────
     col_map = {"N": "nitrogen", "P": "phosphorus", "K": "potassium"}
     df = df.rename(columns=col_map)
+
+    # ── Add humidity estimate if not present (source CSV has no humidity) ─────
+    if "humidity" not in df.columns:
+        df["humidity"] = np.clip(
+            40.0 + 0.05 * df["rainfall"] + (30.0 - df["temperature"]),
+            20.0, 100.0,
+        )
+        print("[prepare] Estimated humidity from temperature and rainfall.")
 
     # ── Ensure engineered features ────────────────────────────────────────────
     df = _ensure_engineered_features(df)
@@ -186,22 +196,24 @@ def train_and_save() -> None:
     X_yield = df[feature_cols_yield].values
     y_yield = df[_YIELD_COL].values
 
-    # ── Scale features ────────────────────────────────────────────────────────
-    scaler_crop = StandardScaler()
-    X_crop_scaled = scaler_crop.fit_transform(X_crop)
-
-    scaler_yield = StandardScaler()
-    X_yield_scaled = scaler_yield.fit_transform(X_yield)
-
-    # ── Train / test split ────────────────────────────────────────────────────
-    X_crop_tr, X_crop_te, y_crop_tr, y_crop_te = train_test_split(
-        X_crop_scaled, y_crop,
+    # ── Train / test split (BEFORE fitting any preprocessor) ────────────────────
+    X_crop_tr_raw, X_crop_te_raw, y_crop_tr, y_crop_te = train_test_split(
+        X_crop, y_crop,
         test_size=0.20, random_state=RANDOM_SEED, stratify=y_crop,
     )
-    X_yield_tr, X_yield_te, y_yield_tr, y_yield_te = train_test_split(
-        X_yield_scaled, y_yield,
+    X_yield_tr_raw, X_yield_te_raw, y_yield_tr, y_yield_te = train_test_split(
+        X_yield, y_yield,
         test_size=0.20, random_state=RANDOM_SEED,
     )
+
+    # ── Scale features — fitted on training split only to prevent leakage ─────
+    scaler_crop = StandardScaler()
+    X_crop_tr = scaler_crop.fit_transform(X_crop_tr_raw)
+    X_crop_te = scaler_crop.transform(X_crop_te_raw)
+
+    scaler_yield = StandardScaler()
+    X_yield_tr = scaler_yield.fit_transform(X_yield_tr_raw)
+    X_yield_te = scaler_yield.transform(X_yield_te_raw)
 
     print(f"\nTrain size : {len(X_crop_tr):,}  |  Test size : {len(X_crop_te):,}")
     print(f"Crop features  ({len(feature_cols_crop)}): {feature_cols_crop}")
@@ -231,7 +243,8 @@ def train_and_save() -> None:
     print(f"  Test  F1 (wtd)  : {test_f1:.4f}")
 
     cv_crop = cross_val_score(
-        crop_model, X_crop_scaled, y_crop,
+        Pipeline([("scaler", StandardScaler()), ("clf", crop_model)]),
+        X_crop, y_crop,
         cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED),
         scoring="accuracy", n_jobs=-1,
     )
@@ -272,7 +285,8 @@ def train_and_save() -> None:
         print(f"  {split_label}  R²={r2:.4f}  MAE={mae:.4f}  RMSE={rmse:.4f}")
 
     cv_yield = cross_val_score(
-        yield_model, X_yield_scaled, y_yield,
+        Pipeline([("scaler", StandardScaler()), ("reg", yield_model)]),
+        X_yield, y_yield,
         cv=5, scoring="r2", n_jobs=-1,
     )
     print(

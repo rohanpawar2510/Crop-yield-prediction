@@ -23,13 +23,14 @@ import joblib
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_DIR = os.path.dirname(_SCRIPT_DIR)
+_REPO_ROOT = os.path.dirname(_BACKEND_DIR)
 
-DATASET_PATH = os.path.join(_BACKEND_DIR, "data", "Crop_recommendation.csv")
+DATASET_PATH = os.path.join(_REPO_ROOT, "notebooks", "Crop_Final_Updated (1).csv")
 PROCESSED_DIR = os.path.join(_SCRIPT_DIR, "processed")
 
 # ─── Feature / label columns ─────────────────────────────────────────────────
 
-FEATURE_COLS = ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"]
+FEATURE_COLS = ["nitrogen", "phosphorus", "potassium", "temperature", "humidity", "ph", "rainfall"]
 LABEL_COL = "label"
 
 
@@ -54,7 +55,7 @@ def prepare(
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(
             f"Dataset not found at {dataset_path!r}. "
-            "Ensure Crop_recommendation.csv is in backend/data/."
+            "Ensure 'Crop_Final_Updated (1).csv' is present in the notebooks/ directory."
         )
 
     df = pd.read_csv(dataset_path)
@@ -67,6 +68,17 @@ def prepare(
         print(f"  Missing values:\n{missing[missing > 0]}")
     else:
         print("  Missing values : none")
+
+    # ── Rename source columns to expected names ───────────────────────────
+    df = df.rename(columns={"N": "nitrogen", "P": "phosphorus", "K": "potassium"})
+
+    # ── Estimate humidity if not in source CSV ────────────────────────────
+    if "humidity" not in df.columns:
+        df["humidity"] = np.clip(
+            40.0 + 0.05 * df["rainfall"] + (30.0 - df["temperature"]),
+            20.0, 100.0,
+        )
+        print("  humidity      : estimated from temperature and rainfall")
 
     # ── Encode labels ─────────────────────────────────────────────────────
     le = LabelEncoder()
