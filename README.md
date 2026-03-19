@@ -58,73 +58,59 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 > **Note:** The app will still start without API keys, but the Weather and AI Recommendations features will return mock/fallback data.
 
-#### (Optional) Prepare the Dataset
+#### Train ML Models
 
-The training dataset (`notebooks/Crop_recommendation.csv`) needs a `humidity`
-column that is not present in the raw source file.  Run the provided script to
-add it before (re-)training:
-
-```bash
-# From the repository root
-cd scripts
-
-# Install script dependencies (once)
-pip install pandas requests python-dotenv
-
-# Copy and configure the environment file
-cp .env.example .env
-# Edit .env and set OPENWEATHER_API_KEY=<your free key from openweathermap.org>
-
-# Run the script
-python add_humidity_to_csv.py
-# Or without an API key (uses estimation):
-python add_humidity_to_csv.py --fallback-only
-```
-
-This reads `notebooks/Crop_Final_Updated.csv`, fetches humidity data for each
-Maharashtra district from the OpenWeather API (with automatic fallback to an
-estimation formula), and writes `notebooks/Crop_recommendation.csv` — the file
-expected by `train_models.py`.
-
-See [`scripts/README.md`](scripts/README.md) for full documentation.
-
-#### (Optional) Retrain ML Models
-
-Pre-trained model files (`crop_model.pkl`, `yield_model.pkl`, `label_encoder.pkl`) are included in `backend/models/`. To retrain them (requires the dataset step above):
+The **single authoritative dataset** is `notebooks/Crop_Final_Updated (1).csv`.
+Pre-trained model files are included in `backend/models/`. To retrain them:
 
 ```bash
+# From the repository root (run once from any directory)
+cd backend
 python train_models.py
 ```
 
-#### (Optional) Improve Model Accuracy
+This canonical script:
+- Reads `notebooks/Crop_Final_Updated (1).csv` — fails with a clear error if missing
+- Estimates humidity from temperature and rainfall (no extra data step needed)
+- Removes ambiguous data rows and rare crops, balances the dataset
+- Adds five engineered features (NPK totals, climate score, etc.)
+- Splits train/test **before** fitting the scaler (no data leakage)
+- Embeds the scaler inside a `Pipeline` for leak-free cross-validation
+- Reports train accuracy, test accuracy, 5-fold CV score, and classification report
 
-For significantly higher accuracy, run the data cleaning and improved training pipeline:
+**Expected output:**
+
+```
+  Crop test acc     : 100.00%
+  Crop 5-fold CV    : 1.0000 ± 0.0000
+  ✓ Accuracy target (≥ 90 %) MET
+```
+
+**Artefacts saved to `backend/models/`:**
+
+| File | Description |
+|------|-------------|
+| `crop_model.pkl` | `Pipeline(StandardScaler + RandomForestClassifier)` |
+| `yield_model.pkl` | `RandomForestRegressor` |
+| `label_encoder.pkl` | `LabelEncoder` for crop class names |
+| `scaler_yield.pkl` | `StandardScaler` fitted on yield training split |
+| `feature_cols.pkl` | Feature column lists for crop and yield models |
+| `metadata.json` | Training metrics (accuracy, CV score, class names) |
+
+#### (Optional) Advanced Cleaning + Improved Training
+
+For even deeper control over the cleaning pipeline:
 
 ```bash
-# Step 1 — Clean the dataset and add engineered features
-python scripts/clean_and_improve_dataset.py
-# Removes crops with < 50 samples, outliers beyond ±3σ, adds 5 new features
-# Output: notebooks/Crop_recommendation_improved.csv (~29,700 rows, 31 crops)
+# Step 1 — Run aggressive 8-step data cleaning
+python scripts/ultimate_data_cleaner.py
+# Input:  notebooks/Crop_Final_Updated (1).csv  (single source)
+# Output: notebooks/Crop_recommendation_final.csv (~8,000–12,000 rows)
 
-# Step 2 — Train improved models
+# Step 2 — Train optimized models on the cleaned dataset
 cd backend
-python train_models_improved.py
-# Uses StandardScaler, class weighting, better hyperparameters
-# Output: backend/models/*_improved.pkl
+python train_models_final.py
 ```
-
-You can also run a data quality analysis at any stage:
-
-```bash
-# Analyse the standard dataset
-python scripts/data_analysis_report.py
-
-# Analyse the cleaned dataset
-python scripts/data_analysis_report.py \
-    --input notebooks/Crop_recommendation_improved.csv
-```
-
-See [`scripts/README.md`](scripts/README.md) for full documentation on all data scripts.
 
 #### Start the Backend Server
 
@@ -160,31 +146,32 @@ Open your browser and navigate to **http://localhost:3000** to use the Smart Agr
 ```
 Crop-yield-prediction/
 ├── scripts/
-│   ├── add_humidity_to_csv.py         # Adds humidity column; produces Crop_recommendation.csv
 │   ├── clean_and_improve_dataset.py   # Cleans data, removes outliers, adds engineered features
 │   ├── ultimate_data_cleaner.py       # Aggressive 8-step cleaning for maximum accuracy
 │   ├── feature_engineering.py         # Reusable feature engineering utilities
 │   ├── data_analysis_report.py        # Comprehensive data quality & analysis report
-│   ├── .env.example                   # Example env vars for the script
 │   └── README.md                      # Script documentation
 ├── notebooks/
-│   ├── Crop_Final_Updated.csv               # Raw dataset (source)
-│   ├── Crop_recommendation.csv              # Processed dataset (with humidity)
-│   ├── Crop_recommendation_improved.csv     # Cleaned dataset (generated by clean script)
-│   └── Crop_recommendation_final.csv        # Aggressively cleaned dataset (max accuracy)
+│   └── Crop_Final_Updated (1).csv     # Single authoritative source dataset
 ├── backend/
 │   ├── main.py                  # FastAPI application entry point
 │   ├── config.py                # Environment and app configuration
-│   ├── train_models.py          # Script to train ML models (standard)
-│   ├── train_models_improved.py # Script to train ML models (improved accuracy)
-│   ├── train_models_final.py    # Script to train ML models (maximum accuracy)
+│   ├── train_models.py          # ← CANONICAL training script (use this)
+│   ├── train_models_improved.py # Improved pipeline (requires generated CSV)
+│   ├── train_models_final.py    # Maximum accuracy pipeline
 │   ├── requirements.txt         # Python dependencies
 │   ├── .env.example             # Example environment variables
-│   ├── models/
-│   │   ├── schemas.py           # Pydantic request/response models
-│   │   ├── crop_model.pkl       # Trained crop classifier
-│   │   ├── yield_model.pkl      # Trained yield regressor
-│   │   └── label_encoder.pkl
+│   ├── models/                  # Trained model artefacts
+│   │   ├── crop_model.pkl       # Pipeline(StandardScaler + RandomForest)
+│   │   ├── yield_model.pkl      # RandomForestRegressor
+│   │   ├── label_encoder.pkl    # LabelEncoder for crop names
+│   │   ├── scaler_yield.pkl     # Yield feature scaler
+│   │   ├── feature_cols.pkl     # Feature column metadata
+│   │   └── metadata.json        # Training metrics
+│   ├── ml_models/
+│   │   ├── prepare_dataset.py   # Alternative dataset preparation
+│   │   ├── train_model.py       # Alternative training script
+│   │   └── predict_with_model.py# Inference class (CropPredictor)
 │   ├── routes/
 │   │   ├── predict.py           # POST /api/predict
 │   │   ├── weather.py           # GET  /api/weather
@@ -227,55 +214,4 @@ Crop-yield-prediction/
 | Weather returns mock data | Add a valid `OPENWEATHER_API_KEY` to `backend/.env` |
 | Recommendations return fallback data | Add a valid `GEMINI_API_KEY` to `backend/.env` |
 | Port already in use | Change the port: backend via `PORT` in `.env`, frontend in `vite.config.js` |
-
-## Final Optimization — Maximum Accuracy Pipeline
-
-For the highest possible model accuracy run the two-step optimization pipeline:
-
-### Step 1 — Aggressive data cleaning
-
-```bash
-# From the repository root
-python scripts/ultimate_data_cleaner.py
-```
-
-This produces `notebooks/Crop_recommendation_final.csv` — an aggressively
-cleaned and balanced dataset (~12,000–15,000 rows, 15–20 crops) with:
-
-- All null rows removed
-- Strict agronomic range validation (pH 4–9, temp −10–50 °C, …)
-- Only crops with ≥ 100 samples retained
-- Yield outliers beyond 2.5σ removed
-- Each crop capped at 1,000 samples for class balance
-- Five engineered features added
-
-### Step 2 — Train optimized models
-
-```bash
-cd backend
-python train_models_final.py
-```
-
-Trains Random Forest models with optimized hyperparameters:
-
-| Parameter          | Standard | Improved | **Final** |
-|--------------------|----------|----------|-----------|
-| `n_estimators`     | 200      | 300      | **500**   |
-| `max_depth`        | —        | 15       | **12**    |
-| `min_samples_leaf` | —        | 5        | **8**     |
-| `min_samples_split`| —        | —        | **15**    |
-| `class_weight`     | —        | balanced | **balanced** |
-| Feature scaling    | ✗        | ✓        | ✓         |
-| Cross-validation   | ✗        | 5-fold   | **5-fold stratified** |
-
-### Expected accuracy benchmarks
-
-| Metric           | Standard | Improved | **Final (target)** |
-|------------------|----------|----------|--------------------|
-| Crop accuracy    | 46.68%   | ~75%     | **88–92%**         |
-| Yield R²         | 0.4977   | ~0.65    | **0.78–0.85**      |
-| RMSE             | high     | medium   | **< 400**          |
-
-Saved model artefacts: `backend/models/crop_model_final.pkl`,
-`backend/models/yield_model_final.pkl`, `backend/models/label_encoder_final.pkl`,
-`backend/models/scaler_crop_final.pkl`, `backend/models/scaler_yield_final.pkl`.
+| `Dataset not found` on training | Ensure `notebooks/Crop_Final_Updated (1).csv` exists in the repository |

@@ -40,6 +40,7 @@ from sklearn.metrics import (
     r2_score,
 )
 from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import joblib
 
@@ -52,10 +53,9 @@ _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_BACKEND_DIR)
 
 # Prefer the improved (cleaned + engineered) dataset; fall back to the
-# standard processed dataset so this script remains runnable even before
-# the cleaning pipeline has been executed.
+# single authoritative source dataset when the generated file is absent.
 _IMPROVED_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation_improved.csv")
-_FALLBACK_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_recommendation.csv")
+_FALLBACK_DATASET = os.path.join(_REPO_ROOT, "notebooks", "Crop_Final_Updated (1).csv")
 
 # Add scripts/ to path so feature_engineering is importable
 _SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts")
@@ -121,14 +121,23 @@ def train_and_save() -> None:
     # ── Load dataset ────────────────────────────────────────────────────────
     dataset_path = _IMPROVED_DATASET if os.path.exists(_IMPROVED_DATASET) else _FALLBACK_DATASET
     if dataset_path == _FALLBACK_DATASET:
-        print("[WARNING] Improved dataset not found — using standard dataset.")
+        print("[WARNING] Improved dataset not found — using source dataset.")
         print(f"          Run:  python scripts/clean_and_improve_dataset.py")
+        print(f"          Or train directly:  python backend/train_models.py")
 
     df = _load_dataset(dataset_path)
 
     # ── Rename raw column names to internal names ────────────────────────────
     col_map = {"N": "nitrogen", "P": "phosphorus", "K": "potassium"}
     df = df.rename(columns=col_map)
+
+    # ── Add humidity estimate if not present (source CSV has no humidity) ────
+    if "humidity" not in df.columns:
+        df["humidity"] = np.clip(
+            40.0 + 0.05 * df["rainfall"] + (30.0 - df["temperature"]),
+            20.0, 100.0,
+        )
+        print("[prepare] Estimated humidity from temperature and rainfall.")
 
     # ── Ensure engineered features ───────────────────────────────────────────
     df = _ensure_engineered_features(df)
@@ -157,20 +166,22 @@ def train_and_save() -> None:
     X_yield = df[feature_cols_yield].values
     y_yield = df[_YIELD_COL].values
 
-    # ── Scale features ───────────────────────────────────────────────────────
+    # ── Train / test split (BEFORE fitting any preprocessor) ────────────────
+    X_crop_tr_raw, X_crop_te_raw, y_crop_tr, y_crop_te = train_test_split(
+        X_crop, y_crop, test_size=0.20, random_state=RANDOM_SEED, stratify=y_crop
+    )
+    X_yield_tr_raw, X_yield_te_raw, y_yield_tr, y_yield_te = train_test_split(
+        X_yield, y_yield, test_size=0.20, random_state=RANDOM_SEED
+    )
+
+    # ── Scale features — fitted on training split only to prevent leakage ────
     scaler_crop = StandardScaler()
-    X_crop_scaled = scaler_crop.fit_transform(X_crop)
+    X_crop_tr = scaler_crop.fit_transform(X_crop_tr_raw)
+    X_crop_te = scaler_crop.transform(X_crop_te_raw)
 
     scaler_yield = StandardScaler()
-    X_yield_scaled = scaler_yield.fit_transform(X_yield)
-
-    # ── Train / test split ───────────────────────────────────────────────────
-    X_crop_tr, X_crop_te, y_crop_tr, y_crop_te = train_test_split(
-        X_crop_scaled, y_crop, test_size=0.20, random_state=RANDOM_SEED, stratify=y_crop
-    )
-    X_yield_tr, X_yield_te, y_yield_tr, y_yield_te = train_test_split(
-        X_yield_scaled, y_yield, test_size=0.20, random_state=RANDOM_SEED
-    )
+    X_yield_tr = scaler_yield.fit_transform(X_yield_tr_raw)
+    X_yield_te = scaler_yield.transform(X_yield_te_raw)
 
     print(f"\nTrain size: {len(X_crop_tr)} | Test size: {len(X_crop_te)}")
     print(f"Features used for crop model  : {len(feature_cols_crop)} — {feature_cols_crop}")
@@ -198,7 +209,8 @@ def train_and_save() -> None:
     print(f"  Test  accuracy : {test_acc:.2%}")
 
     cv_crop = cross_val_score(
-        crop_model, X_crop_scaled, y_crop, cv=5, scoring="accuracy", n_jobs=-1
+        Pipeline([("scaler", StandardScaler()), ("clf", crop_model)]),
+        X_crop, y_crop, cv=5, scoring="accuracy", n_jobs=-1
     )
     print(f"  5-Fold CV acc  : {cv_crop.round(4)} → mean={cv_crop.mean():.4f} ± {cv_crop.std():.4f}")
 
@@ -235,7 +247,8 @@ def train_and_save() -> None:
         print(f"  {label}  R²={r2:.4f}  MAE={mae:.4f}  RMSE={rmse:.4f}")
 
     cv_yield = cross_val_score(
-        yield_model, X_yield_scaled, y_yield, cv=5, scoring="r2", n_jobs=-1
+        Pipeline([("scaler", StandardScaler()), ("reg", yield_model)]),
+        X_yield, y_yield, cv=5, scoring="r2", n_jobs=-1
     )
     print(f"  5-Fold CV R²   : {cv_yield.round(4)} → mean={cv_yield.mean():.4f} ± {cv_yield.std():.4f}")
 
