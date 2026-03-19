@@ -219,6 +219,76 @@ python scripts/data_analysis_report.py \
 
 ---
 
+---
+
+## ultimate_data_cleaner.py
+
+Aggressive 8-step cleaning and balancing pipeline designed for maximum
+model accuracy. Produces `Crop_recommendation_final.csv`.
+
+### Why use this instead of clean_and_improve_dataset.py?
+
+| Setting              | `clean_and_improve_dataset.py` | `ultimate_data_cleaner.py` |
+|----------------------|-------------------------------|---------------------------|
+| Min samples per crop | 50                            | **100**                   |
+| Outlier σ threshold  | 3.0                           | **2.5** (more aggressive) |
+| Max samples per crop | unlimited                     | **1 000** (balance)       |
+| pH valid range       | 0–14                          | **4–9** (agronomic)       |
+| Temperature range    | −10 to 55 °C                  | **−10 to 50 °C**          |
+| Rainfall range       | 0–5000 mm                     | **0–3000 mm**             |
+
+### 8-step pipeline
+
+```
+Crop_recommendation.csv (~30,042 rows, 37 crops)
+  ↓  Step 1 — Load & validate (columns, types)
+  ↓  Step 2 — Remove all null rows
+  ↓  Step 3 — Strict range validation
+  ↓  Step 4 — Remove crops with < 100 samples
+  ↓  Step 5 — Remove yield outliers > 2.5σ per crop
+  ↓  Step 6 — Balance: cap at 1000 samples per crop
+  ↓  Step 7 — Add 5 engineered features
+  ↓  Step 8 — Save & comprehensive report
+Crop_recommendation_final.csv (~12,000–15,000 rows, 15–20 crops)
+```
+
+### Expected output
+
+| Metric            | Before          | After              |
+|-------------------|-----------------|--------------------|
+| Rows              | ~30,042         | ~12,000–15,000     |
+| Crops             | 37              | 15–20              |
+| Samples per crop  | highly variable | 750–1,000          |
+| Null values       | some            | 0                  |
+| Yield outliers    | many            | 0                  |
+
+### Usage
+
+```bash
+# Default paths (from repository root)
+python scripts/ultimate_data_cleaner.py
+
+# Custom options
+python scripts/ultimate_data_cleaner.py \
+    --input   notebooks/Crop_recommendation.csv \
+    --output  notebooks/Crop_recommendation_final.csv \
+    --min-samples  100 \
+    --max-samples  1000 \
+    --outlier-sigma 2.5
+```
+
+### Command-line flags
+
+| Flag              | Default | Description                                   |
+|-------------------|---------|-----------------------------------------------|
+| `--input`         | `notebooks/Crop_recommendation.csv` | Input CSV |
+| `--output`        | `notebooks/Crop_recommendation_final.csv` | Output CSV |
+| `--min-samples`   | `100`   | Drop crops with fewer samples                 |
+| `--max-samples`   | `1000`  | Cap per crop to balance classes               |
+| `--outlier-sigma` | `2.5`   | Yield outlier threshold in std deviations     |
+
+---
+
 ## Recommended workflow
 
 ```bash
@@ -229,13 +299,16 @@ python add_humidity_to_csv.py --fallback-only   # or use --api-key
 # Step 2 — Analyse the standard dataset
 python data_analysis_report.py
 
-# Step 3 — Clean and improve the dataset
+# Step 3a — Clean and improve the dataset (moderate cleaning)
 python clean_and_improve_dataset.py
 
-# Step 4 — Analyse the improved dataset
-python data_analysis_report.py --input notebooks/Crop_recommendation_improved.csv
+# Step 3b — Aggressively clean the dataset (for maximum accuracy)
+python ultimate_data_cleaner.py
 
-# Step 5 — Train improved models
+# Step 4 — Analyse the final dataset
+python data_analysis_report.py --input notebooks/Crop_recommendation_final.csv
+
+# Step 5 — Train final optimised models
 cd ../backend
-python train_models_improved.py
+python train_models_final.py
 ```
