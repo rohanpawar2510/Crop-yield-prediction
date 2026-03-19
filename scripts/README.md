@@ -1,4 +1,10 @@
-# scripts/add_humidity_to_csv.py
+# scripts/
+
+Data preparation and analysis utilities for the crop recommendation dataset.
+
+---
+
+## add_humidity_to_csv.py
 
 A utility script that adds a `humidity` column to the Maharashtra crop dataset
 and produces `Crop_recommendation.csv` — the file required by
@@ -115,3 +121,121 @@ python train_models.py
 | 0 | Success |
 | 1 | Fatal error (source file not found, missing required column) |
 | 2 | Saved with validation warnings (review the console output) |
+
+---
+
+## clean_and_improve_dataset.py
+
+Data cleaning pipeline that removes underrepresented crops and extreme yield
+outliers, validates feature ranges, and adds five engineered features.
+
+### Pipeline
+
+```
+Crop_recommendation.csv (30,042 rows, 37 crops)
+  ↓  Step 1 — Load & validate (check nulls, column types)
+  ↓  Step 2 — Remove crops with < 50 samples
+  ↓  Step 3 — Remove yield outliers (> 3σ from per-crop mean)
+  ↓  Step 4 — Validate agronomic ranges
+  ↓  Step 5 — Feature engineering (5 new columns)
+Crop_recommendation_improved.csv (~29,700 rows, ~31 crops)
+```
+
+### Usage
+
+```bash
+# Default paths (from repository root)
+python scripts/clean_and_improve_dataset.py
+
+# Custom options
+python scripts/clean_and_improve_dataset.py \
+    --input  notebooks/Crop_recommendation.csv \
+    --output notebooks/Crop_recommendation_improved.csv \
+    --min-samples 50 \
+    --outlier-sigma 3.0
+```
+
+### Engineered features added
+
+| Feature                    | Formula                                       |
+|----------------------------|-----------------------------------------------|
+| `NPK_total`                | N + P + K                                     |
+| `NPK_ratio`                | N / (P + K)                                   |
+| `Climate_score`            | 0.4×temp + 0.3×humidity + 0.3×(rainfall/100) |
+| `Temp_humidity_interaction`| temperature × humidity                        |
+| `Soil_quality_score`       | Gaussian centred at pH 6.5 (range 0–10)       |
+
+---
+
+## feature_engineering.py
+
+Reusable feature engineering utilities. Can be used as a library or run
+standalone.
+
+### Library usage
+
+```python
+from scripts.feature_engineering import add_features
+
+df_enriched = add_features(df)  # adds 5 new columns
+```
+
+### CLI usage
+
+```bash
+python scripts/feature_engineering.py \
+    --input  notebooks/Crop_recommendation.csv \
+    --output notebooks/Crop_recommendation_features.csv
+```
+
+---
+
+## data_analysis_report.py
+
+Generates a comprehensive data quality and exploratory analysis report.
+
+### Sections covered
+
+1. Dataset overview (shape, columns, dtypes)
+2. Missing value audit
+3. Feature range validation
+4. Crop distribution (counts, % representation)
+5. Yield statistics per crop (mean, std, min, max, IQR)
+6. Outlier detection (values beyond ±3σ per crop)
+7. Feature correlation matrix
+8. Feature-label mutual information scores
+9. Data validation summary
+
+### Usage
+
+```bash
+# Analyse the standard processed dataset
+python scripts/data_analysis_report.py
+
+# Analyse the cleaned improved dataset
+python scripts/data_analysis_report.py \
+    --input notebooks/Crop_recommendation_improved.csv
+```
+
+---
+
+## Recommended workflow
+
+```bash
+# Step 1 — Add humidity to raw dataset (if not already done)
+cd scripts
+python add_humidity_to_csv.py --fallback-only   # or use --api-key
+
+# Step 2 — Analyse the standard dataset
+python data_analysis_report.py
+
+# Step 3 — Clean and improve the dataset
+python clean_and_improve_dataset.py
+
+# Step 4 — Analyse the improved dataset
+python data_analysis_report.py --input notebooks/Crop_recommendation_improved.csv
+
+# Step 5 — Train improved models
+cd ../backend
+python train_models_improved.py
+```
