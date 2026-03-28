@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Weather from './pages/Weather';
 import Predict from './pages/Predict';
@@ -22,7 +23,8 @@ export default function App() {
           <main className="pt-16 lg:pl-64">
             <div className="p-6 max-w-7xl mx-auto">
               <Routes>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/" element={<Landing />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/weather" element={<Weather />} />
                 <Route path="/predict" element={<Predict />} />
                 <Route path="/recommend" element={<Recommend />} />
