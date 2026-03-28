@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Cloud, Leaf, Lightbulb, Bug, X } from 'lucide-react';
+import { Home, LayoutDashboard, Cloud, Leaf, Lightbulb, Bug } from 'lucide-react';
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/', label: 'Home', icon: Home },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/weather', label: 'Weather', icon: Cloud },
   { to: '/predict', label: 'Predict', icon: Leaf },
   { to: '/recommend', label: 'Recommend', icon: Lightbulb },
@@ -37,7 +38,7 @@ export default function Sidebar({ open, setOpen }) {
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
+              end={to === '/' || to === '/dashboard'}
               onClick={() => setOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
