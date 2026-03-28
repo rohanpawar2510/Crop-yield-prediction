@@ -47,27 +47,31 @@ def _load_crop_predictor():
     return _crop_predictor
 
 
-# ─── Legacy yield model ───────────────────────────────────────────────────────
+# ─── Simple yield model (8-feature) ──────────────────────────────────────────
 
 _yield_model = None
 _legacy_label_encoder = None
+_scaler_yield = None
 _legacy_models_loaded: bool = False
+
+_MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
 
 def _load_legacy_models() -> None:
-    """Attempt to load the yield regression model from models/. Runs once."""
-    global _yield_model, _legacy_label_encoder, _legacy_models_loaded
+    """Attempt to load the simple 8-feature yield model from models/. Runs once."""
+    global _yield_model, _legacy_label_encoder, _scaler_yield, _legacy_models_loaded
     if _legacy_models_loaded:
         return
 
-    base = os.path.dirname(__file__)
-    yield_path = os.path.join(base, "..", config.YIELD_MODEL_PATH)
-    encoder_path = os.path.join(base, "..", config.LABEL_ENCODER_PATH)
+    yield_path = os.path.join(_MODELS_DIR, "yield_model_simple.pkl")
+    encoder_path = os.path.join(_MODELS_DIR, "label_encoder_simple.pkl")
+    scaler_path = os.path.join(_MODELS_DIR, "scaler_yield_simple.pkl")
 
     try:
         _yield_model = joblib.load(yield_path)
         _legacy_label_encoder = joblib.load(encoder_path)
-        logger.info("Yield model loaded from %s", yield_path)
+        _scaler_yield = joblib.load(scaler_path)
+        logger.info("Simple yield model loaded from %s", yield_path)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Yield model not available (%s)", exc)
 
@@ -181,7 +185,7 @@ def predict_yield(
 
     if _yield_model is not None and _legacy_label_encoder is not None:
         try:
-            # Encode the crop name using the legacy encoder
+            # Encode the crop name using the simple label encoder
             crop_lower = recommended_crop.lower()
             if crop_lower in _legacy_label_encoder.classes_:
                 crop_encoded = _legacy_label_encoder.transform([crop_lower])[0]
@@ -191,6 +195,8 @@ def predict_yield(
             yield_features = np.array([[nitrogen, phosphorus, potassium,
                                         temperature, humidity, ph, rainfall,
                                         crop_encoded]])
+            if _scaler_yield is not None:
+                yield_features = _scaler_yield.transform(yield_features)
             predicted_yield_val = round(float(_yield_model.predict(yield_features)[0]), 2)
 
             # Yield for top crops
@@ -202,6 +208,8 @@ def predict_yield(
                     idx = 0
                 yf = np.array([[nitrogen, phosphorus, potassium,
                                 temperature, humidity, ph, rainfall, idx]])
+                if _scaler_yield is not None:
+                    yf = _scaler_yield.transform(yf)
                 yield_comparison.append(round(float(_yield_model.predict(yf)[0]), 2))
         except Exception as exc:  # noqa: BLE001
             logger.warning("Yield prediction error: %s", exc)
