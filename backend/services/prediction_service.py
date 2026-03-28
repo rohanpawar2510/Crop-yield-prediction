@@ -184,35 +184,39 @@ def predict_yield(
     yield_comparison: list[float] = []
 
     if _yield_model is not None and _legacy_label_encoder is not None:
+        # Encode the crop name using the simple label encoder
+        crop_lower = recommended_crop.lower()
+        if crop_lower in _legacy_label_encoder.classes_:
+            crop_encoded = _legacy_label_encoder.transform([crop_lower])[0]
+        else:
+            crop_encoded = 0
+
+        # Create yield features with exactly 8 features in correct order
+        yield_features = np.array([[nitrogen, phosphorus, potassium,
+                                    temperature, humidity, ph, rainfall,
+                                    crop_encoded]])
         try:
-            # Encode the crop name using the simple label encoder
-            crop_lower = recommended_crop.lower()
-            if crop_lower in _legacy_label_encoder.classes_:
-                crop_encoded = _legacy_label_encoder.transform([crop_lower])[0]
-            else:
-                crop_encoded = 0
-
-            yield_features = np.array([[nitrogen, phosphorus, potassium,
-                                        temperature, humidity, ph, rainfall,
-                                        crop_encoded]])
-            if _scaler_yield is not None:
-                yield_features = _scaler_yield.transform(yield_features)
             predicted_yield_val = round(float(_yield_model.predict(yield_features)[0]), 2)
-
-            # Yield for top crops
-            for p in top3:
-                c_lower = p.crop.lower()
-                if c_lower in _legacy_label_encoder.classes_:
-                    idx = _legacy_label_encoder.transform([c_lower])[0]
-                else:
-                    idx = 0
-                yf = np.array([[nitrogen, phosphorus, potassium,
-                                temperature, humidity, ph, rainfall, idx]])
-                if _scaler_yield is not None:
-                    yf = _scaler_yield.transform(yf)
-                yield_comparison.append(round(float(_yield_model.predict(yf)[0]), 2))
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Yield prediction error: %s", exc)
+            logger.warning("Yield prediction failed: %s", exc)
+            predicted_yield_val = 0.0
+
+        # Yield for top crops
+        for p in top3:
+            c_lower = p.crop.lower()
+            if c_lower in _legacy_label_encoder.classes_:
+                idx = _legacy_label_encoder.transform([c_lower])[0]
+            else:
+                idx = 0
+
+            # Create yield features for comparison with exactly 8 features
+            yf = np.array([[nitrogen, phosphorus, potassium,
+                            temperature, humidity, ph, rainfall, idx]])
+            try:
+                yield_comparison.append(round(float(_yield_model.predict(yf)[0]), 2))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Yield comparison prediction failed: %s", exc)
+                yield_comparison.append(0.0)
 
     if not yield_comparison:
         yield_comparison = [0.0] * len(top3)
