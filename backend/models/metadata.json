@@ -1,21 +1,29 @@
 {
   "algorithm": "Pipeline(StandardScaler + RandomForestClassifier)",
   "train_accuracy": 100.0,
-  "test_accuracy": 100.0,
-  "cv_accuracy_mean": 100.0,
-  "cv_accuracy_std": 0.0,
-  "n_classes": 10,
+  "test_accuracy": 99.5885,
+  "cv_accuracy_mean": 99.5389,
+  "cv_accuracy_std": 0.0708,
+  "n_classes": 18,
   "crop_classes": [
     "BAJRA",
     "BANANA",
     "BLACKGRAM",
+    "COTTON",
+    "GINGER",
+    "GRAPES",
+    "GROUNDNUT",
+    "JOWAR",
     "LENTIL",
+    "MAIZE",
     "MOTHBEANS",
     "NIGER SEED",
-    "PIGEONPEAS",
     "POTATO",
     "RICE",
-    "SESAMUM"
+    "SESAMUM",
+    "SUGARCANE",
+    "TUR",
+    "WHEAT"
   ],
   "feature_names": [
     "nitrogen",
@@ -31,6 +39,6 @@
     "Temp_humidity_interaction",
     "Soil_quality_score"
   ],
-  "dataset": "notebooks/Crop_Final_Updated (1).csv",
+  "dataset": "notebooks\\Crop_Final_Updated (1).csv",
   "random_seed": 42
 }

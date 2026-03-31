@@ -102,14 +102,13 @@ export default function Predict() {
               transition={{ delay: 0.1 }}
             >
               <SoilRadarChart
-                nitrogen={formData.nitrogen}
-                phosphorus={formData.phosphorus}
-                potassium={formData.potassium}
-                temperature={formData.temperature}
-                humidity={formData.humidity}
-                ph={formData.ph}
-                rainfall={formData.rainfall}
-              />
+  nitrogen={formData.nitrogen}
+  phosphorus={formData.phosphorus}
+  potassium={formData.potassium}
+  temperature={formData.temperature}
+  ph={formData.ph}
+  rainfall={formData.rainfall}
+/>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}

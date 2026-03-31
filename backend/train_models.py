@@ -62,7 +62,7 @@ OUTLIER_SIGMA = 2.5          # yield outlier threshold in standard deviations
 # Single authoritative source; script fails with a clear error if missing.
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_BACKEND_DIR)
-_DATASET_PATH = os.path.join(_REPO_ROOT, "notebooks", "Crop_Final_Updated (1).csv")
+_DATASET_PATH = os.path.join(_REPO_ROOT, "notebooks", "Final_Agriculture_Dataset_ML_Final.csv")
 
 _LABEL_COL = "label"
 _YIELD_COL = "yield"

@@ -17,7 +17,6 @@ const MAXES = {
   Phosphorus: 145,
   Potassium: 205,
   Temperature: 50,
-  Humidity: 100,
   pH: 14,
   Rainfall: 500,
 };
@@ -27,7 +26,6 @@ export default function SoilRadarChart({
   phosphorus = 0,
   potassium = 0,
   temperature = 0,
-  humidity = 0,
   ph = 0,
   rainfall = 0,
 }) {
@@ -35,8 +33,8 @@ export default function SoilRadarChart({
   const textColor = isDark ? '#9CA3AF' : '#6B7280';
   const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
-  const rawValues = [nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall];
-  const labels = ['Nitrogen', 'Phosphorus', 'Potassium', 'Temperature', 'Humidity', 'pH', 'Rainfall'];
+  const rawValues = [nitrogen, phosphorus, potassium, temperature, ph, rainfall];
+  const labels = ['Nitrogen', 'Phosphorus', 'Potassium', 'Temperature', 'pH', 'Rainfall'];
   const maxValues = Object.values(MAXES);
   const normalized = rawValues.map((v, i) => parseFloat(((v / maxValues[i]) * 100).toFixed(1)));
 
@@ -68,7 +66,7 @@ export default function SoilRadarChart({
         callbacks: {
           label: (ctx) => {
             const raw = rawValues[ctx.dataIndex];
-            const unit = ['mg/kg', 'mg/kg', 'mg/kg', '°C', '%', '', 'mm'][ctx.dataIndex];
+            const unit = ['mg/kg', 'mg/kg', 'mg/kg', '°C', '', 'mm'][ctx.dataIndex];
             return ` ${ctx.label}: ${raw}${unit ? ` ${unit}` : ''}`;
           },
         },
