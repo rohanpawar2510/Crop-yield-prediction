@@ -1,16 +1,20 @@
 """
 train_models.py — Canonical training script for crop recommendation.
 
-Single authoritative source dataset: notebooks/Crop_Final_Updated (1).csv
+Single authoritative source dataset: notebooks/Final_Agriculture_Dataset_ML_Final.csv
+
+Dataset schema:
+  Columns: N, P, K, temperature, ph, rainfall, label, yield,
+           district_name, Season, Area
+  Note: yield is already log-transformed in the dataset.
 
 Data cleaning pipeline (inline):
-  1. Rename columns (N→nitrogen, P→phosphorus, K→potassium).
-  2. Add humidity estimate from temperature and rainfall (source has no humidity).
-  3. Remove ambiguous rows where the same feature values map to many crops.
-  4. Remove crops with fewer than MIN_SAMPLES_PER_CROP samples.
-  5. Remove yield outliers beyond OUTLIER_SIGMA standard deviations per crop.
-  6. Cap at MAX_SAMPLES_PER_CROP rows per crop (class balance).
-  7. Add five engineered features.
+  1. Rename columns (N→nitrogen, P→phosphorus, K→potassium,
+     Area→area, district_name→district, Season→season).
+  2. Remove crops with fewer than MIN_SAMPLES_PER_CROP samples.
+  3. Remove yield outliers beyond OUTLIER_SIGMA standard deviations per crop.
+  4. Cap at MAX_SAMPLES_PER_CROP rows per crop (class balance).
+  5. Add four engineered features.
 
 Training:
   - Split train/test FIRST (20 % held-out, stratified).
@@ -69,64 +73,29 @@ _YIELD_COL = "yield"
 
 _BASE_FEATURES = [
     "nitrogen", "phosphorus", "potassium",
-    "temperature", "humidity", "ph", "rainfall",
+    "temperature", "ph", "rainfall",
+    "district", "season", "area",
 ]
 _ENGINEERED_FEATURES = [
     "NPK_total",
     "NPK_ratio",
     "Climate_score",
-    "Temp_humidity_interaction",
     "Soil_quality_score",
 ]
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def _estimate_humidity(df: pd.DataFrame) -> pd.Series:
-    """Estimate relative humidity (%) from temperature and rainfall.
-
-    Used because the source dataset has no humidity column.  At inference time
-    the prediction service supplies real humidity from the weather API, keeping
-    both on a compatible scale.
-    """
-    return np.clip(
-        40.0 + 0.05 * df["rainfall"] + (30.0 - df["temperature"]),
-        20.0, 100.0,
-    )
-
-
 def _add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy of *df* with five additional engineered columns."""
+    """Return a copy of *df* with four additional engineered columns."""
     df = df.copy()
     df["NPK_total"] = df["nitrogen"] + df["phosphorus"] + df["potassium"]
     df["NPK_ratio"] = df["nitrogen"] / (df["phosphorus"] + df["potassium"] + 1e-6)
     df["Climate_score"] = (
-        0.4 * df["temperature"]
-        + 0.3 * df["humidity"]
-        + 0.3 * (df["rainfall"] / 100.0)
+        0.5 * df["temperature"]       # equal weights: temperature
+        + 0.5 * (df["rainfall"] / 100.0)  # and normalised rainfall (per 100 mm)
     )
-    df["Temp_humidity_interaction"] = df["temperature"] * df["humidity"]
     df["Soil_quality_score"] = 10.0 * np.exp(-0.5 * ((df["ph"] - 6.5) / 0.8) ** 2)
-    return df
-
-
-def _remove_ambiguous_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop rows whose feature combination maps to more than one crop label.
-
-    The source dataset contains a 'district default' feature vector shared by
-    many crops simultaneously.  These rows are not informative for per-crop
-    classification and are removed before training.
-    """
-    feat_cols = ["nitrogen", "phosphorus", "potassium", "temperature", "ph", "rainfall"]
-    n_labels_per_combo = df.groupby(feat_cols)[_LABEL_COL].transform("nunique")
-    n_before = len(df)
-    df = df[n_labels_per_combo == 1].reset_index(drop=True)
-    n_removed = n_before - len(df)
-    if n_removed:
-        print(
-            f"[clean] Removed {n_removed:,} ambiguous rows "
-            f"(feature combos shared by multiple crops)."
-        )
     return df
 
 
@@ -184,24 +153,21 @@ def train_and_save() -> None:
     if not os.path.exists(_DATASET_PATH):
         raise FileNotFoundError(
             f"Dataset not found: {_DATASET_PATH!r}\n"
-            "Ensure 'Crop_Final_Updated (1).csv' is present in the notebooks/ directory."
+            "Ensure 'Final_Agriculture_Dataset_ML_Final.csv' is present in the notebooks/ directory."
         )
     df = pd.read_csv(_DATASET_PATH)
     print(f"[load] {_DATASET_PATH}")
     print(f"       shape={df.shape}  crops={df[_LABEL_COL].nunique()}")
 
     # ── Rename source column names to internal names ──────────────────────────
-    df = df.rename(columns={"N": "nitrogen", "P": "phosphorus", "K": "potassium"})
-
-    # ── Add humidity estimate (source CSV has no humidity column) ─────────────
-    df["humidity"] = _estimate_humidity(df)
-    print(
-        f"[prepare] Estimated humidity: "
-        f"mean={df['humidity'].mean():.1f}  std={df['humidity'].std():.1f}"
-    )
-
-    # ── Remove ambiguous feature combos ──────────────────────────────────────
-    df = _remove_ambiguous_rows(df)
+    df = df.rename(columns={
+        "N": "nitrogen",
+        "P": "phosphorus",
+        "K": "potassium",
+        "Area": "area",
+        "district_name": "district",
+        "Season": "season",
+    })
 
     # ── Clean: rare crops, outliers, balance ─────────────────────────────────
     df = _clean_dataset(df)
@@ -357,7 +323,7 @@ def train_and_save() -> None:
         "n_classes": int(len(le.classes_)),
         "crop_classes": list(le.classes_),
         "feature_names": feature_cols_crop,
-        "dataset": os.path.join("notebooks", "Crop_Final_Updated (1).csv"),
+        "dataset": os.path.join("notebooks", "Final_Agriculture_Dataset_ML_Final.csv"),
         "random_seed": RANDOM_SEED,
     }
     meta_path = os.path.join(models_dir, "metadata.json")
