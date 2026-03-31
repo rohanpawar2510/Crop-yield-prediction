@@ -8,9 +8,11 @@ const defaultValues = {
   phosphorus: '',
   potassium: '',
   temperature: '',
-  humidity: '',
   ph: '',
   rainfall: '',
+  district: '',
+  season: '',
+  area: '',
 };
 
 export default function PredictionForm({ onSubmit, loading }) {
@@ -22,9 +24,11 @@ export default function PredictionForm({ onSubmit, loading }) {
     { key: 'phosphorus', label: 'Phosphorus (P)', placeholder: '5-145', min: 0, max: 145 },
     { key: 'potassium', label: 'Potassium (K)', placeholder: '5-205', min: 0, max: 205 },
     { key: 'temperature', label: 'Temperature (°C)', placeholder: '8-44', min: 0, max: 50 },
-    { key: 'humidity', label: 'Humidity (%)', placeholder: '14-100', min: 0, max: 100 },
     { key: 'ph', label: 'pH Level', placeholder: '3.5-9.9', min: 0, max: 14, step: 0.1 },
     { key: 'rainfall', label: 'Rainfall (mm)', placeholder: '20-300', min: 0, max: 500 },
+    { key: 'district', label: 'District', type: 'select', options: ['Pune', 'Nashik', 'Aurangabad', 'Nagpur', 'Amravati', 'Kolhapur', 'Solapur', 'Sangli', 'Satara', 'Ratnagiri', 'Sindhudurg', 'Jalgaon', 'Buldhana', 'Akola', 'Washim', 'Yavatmal', 'Wardha', 'Chandrapur', 'Gondiya', 'Bhandara'] },
+    { key: 'season', label: 'Season', type: 'select', options: ['Summer', 'Monsoon', 'Winter'] },
+    { key: 'area', label: 'Area (hectares)', placeholder: '0-1000', min: 0, max: 10000 },
   ];
 
   const handleChange = (key, value) => {
@@ -33,9 +37,12 @@ export default function PredictionForm({ onSubmit, loading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const data = { location: values.location };
+    const selectKeys = new Set(['location', 'district', 'season']);
+    const data = {};
     for (const [k, v] of Object.entries(values)) {
-      if (k !== 'location') {
+      if (selectKeys.has(k)) {
+        data[k] = v;
+      } else {
         data[k] = parseFloat(v);
       }
     }
@@ -44,30 +51,47 @@ export default function PredictionForm({ onSubmit, loading }) {
 
   const isValid =
     values.location.trim() !== '' &&
+    values.district !== '' &&
+    values.season !== '' &&
     Object.entries(values)
-      .filter(([k]) => k !== 'location')
+      .filter(([k]) => !['location', 'district', 'season'].includes(k))
       .every(([, v]) => v !== '' && !isNaN(parseFloat(v)));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {fields.map(({ key, label, placeholder, type, min, max, step }) => (
+        {fields.map(({ key, label, placeholder, type, min, max, step, options }) => (
           <div key={key}>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {label}
             </label>
-            <input
-              type={type ?? 'number'}
-              value={values[key]}
-              onChange={(e) => handleChange(key, e.target.value)}
-              placeholder={placeholder}
-              min={min}
-              max={max}
-              step={step ?? 1}
-              required
-              disabled={loading}
-              className="input-field"
-            />
+            {type === 'select' ? (
+              <select
+                value={values[key]}
+                onChange={(e) => handleChange(key, e.target.value)}
+                required
+                disabled={loading}
+                className="input-field"
+              >
+                <option value="">Select {label}</option>
+                {options.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type={type ?? 'number'}
+                value={values[key]}
+                onChange={(e) => handleChange(key, e.target.value)}
+                placeholder={placeholder}
+                min={min}
+                max={max}
+                step={step ?? 1}
+                required
+                disabled={loading}
+                className="input-field"
+              />
+            )}
           </div>
         ))}
       </div>

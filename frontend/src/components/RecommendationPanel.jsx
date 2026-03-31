@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
-import { ChevronDown, Droplets, RefreshCw, Bug, Sprout, FlaskConical } from 'lucide-react';
+import { ChevronDown, Droplets, RefreshCw, Bug, Sprout, FlaskConical, MapPin, Cloud, Maximize2 } from 'lucide-react';
 
 const sections = [
   { key: 'fertilizer', label: 'Fertilizer Recommendation', icon: FlaskConical, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
@@ -69,8 +69,36 @@ function AccordionItem({ section, data }) {
 
 export default function RecommendationPanel({ data }) {
   if (!data) return null;
+
+  const hasContext = data.district || data.season || (data.area !== undefined && data.area !== null);
+
   return (
     <div className="space-y-3">
+      {hasContext && (
+        <div className="flex flex-wrap gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+          {data.district && (
+            <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
+              <MapPin size={14} />
+              <span className="font-medium">District:</span>
+              <span>{data.district}</span>
+            </div>
+          )}
+          {data.season && (
+            <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
+              <Cloud size={14} />
+              <span className="font-medium">Season:</span>
+              <span>{data.season}</span>
+            </div>
+          )}
+          {data.area != null && (
+            <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
+              <Maximize2 size={14} />
+              <span className="font-medium">Area:</span>
+              <span>{data.area} ha</span>
+            </div>
+          )}
+        </div>
+      )}
       {sections.map((s) => (
         <AccordionItem key={s.key} section={s} data={data} />
       ))}

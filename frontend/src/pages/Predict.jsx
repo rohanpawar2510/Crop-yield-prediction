@@ -106,7 +106,6 @@ export default function Predict() {
                 phosphorus={formData.phosphorus}
                 potassium={formData.potassium}
                 temperature={formData.temperature}
-                humidity={formData.humidity}
                 ph={formData.ph}
                 rainfall={formData.rainfall}
               />
