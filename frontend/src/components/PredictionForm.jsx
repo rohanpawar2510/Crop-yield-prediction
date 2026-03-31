@@ -24,11 +24,11 @@ export default function PredictionForm({ onSubmit, loading }) {
     { key: 'phosphorus', label: 'Phosphorus (P)', placeholder: '5-145', min: 0, max: 145 },
     { key: 'potassium', label: 'Potassium (K)', placeholder: '5-205', min: 0, max: 205 },
     { key: 'temperature', label: 'Temperature (°C)', placeholder: '8-44', min: 0, max: 50 },
-    { key: 'ph', label: 'pH Level', placeholder: '3.5-9.9', min: 0, max: 14, step: 0.1 },
-    { key: 'rainfall', label: 'Rainfall (mm)', placeholder: '20-300', min: 0, max: 500 },
     { key: 'district', label: 'District', type: 'select', options: ['Pune', 'Nashik', 'Aurangabad', 'Nagpur', 'Amravati', 'Kolhapur', 'Solapur', 'Sangli', 'Satara', 'Ratnagiri', 'Sindhudurg', 'Jalgaon', 'Buldhana', 'Akola', 'Washim', 'Yavatmal', 'Wardha', 'Chandrapur', 'Gondiya', 'Bhandara'] },
     { key: 'season', label: 'Season', type: 'select', options: ['Summer', 'Monsoon', 'Winter'] },
-    { key: 'area', label: 'Area (hectares)', placeholder: '0-1000', min: 0, max: 10000 },
+    { key: 'area', label: 'Area (hectares)', placeholder: '0-10000', min: 0, max: 10000 },
+    { key: 'ph', label: 'pH Level', placeholder: '3.5-9.9', min: 0, max: 14, step: 0.1 },
+    { key: 'rainfall', label: 'Rainfall (mm)', placeholder: '20-300', min: 0, max: 500 },
   ];
 
   const handleChange = (key, value) => {
