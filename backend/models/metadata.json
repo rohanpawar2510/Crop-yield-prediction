@@ -1,10 +1,10 @@
 {
   "algorithm": "Pipeline(StandardScaler + RandomForestClassifier)",
   "train_accuracy": 100.0,
-  "test_accuracy": 99.5885,
-  "cv_accuracy_mean": 99.5389,
-  "cv_accuracy_std": 0.0708,
-  "n_classes": 18,
+  "test_accuracy": 98.2292,
+  "cv_accuracy_mean": 98.2355,
+  "cv_accuracy_std": 0.2886,
+  "n_classes": 20,
   "crop_classes": [
     "BAJRA",
     "BANANA",
@@ -18,9 +18,11 @@
     "MAIZE",
     "MOTHBEANS",
     "NIGER SEED",
+    "ONION",
     "POTATO",
     "RICE",
     "SESAMUM",
+    "SOYABEAN",
     "SUGARCANE",
     "TUR",
     "WHEAT"
@@ -33,12 +35,27 @@
     "humidity",
     "ph",
     "rainfall",
+    "district",
+    "season",
+    "area",
     "NPK_total",
     "NPK_ratio",
     "Climate_score",
     "Temp_humidity_interaction",
     "Soil_quality_score"
   ],
-  "dataset": "notebooks\\Crop_Final_Updated (1).csv",
+  "dropped_crops": [
+    "APPLE",
+    "CHILLIES",
+    "COCONUT",
+    "JUTE",
+    "KIDNEYBEANS",
+    "ORANGE",
+    "PIGEONPEAS",
+    "POMEGRANATE",
+    "SUNFLOWER",
+    "WATERMELON"
+  ],
+  "dataset": "notebooks\\Final_Agriculture_Dataset_V2.csv",
   "random_seed": 42
 }

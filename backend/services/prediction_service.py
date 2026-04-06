@@ -8,10 +8,11 @@ Loads models from backend/models/:
   scaler_yield.pkl     — StandardScaler for yield features
   feature_cols.pkl     — {'crop': [...], 'yield': [...]} feature column lists
 
-Input features (14 crop / 15 yield):
+Input features (15 crop / 16 yield):
   User:        nitrogen, phosphorus, potassium, ph, area, district, season
-  Weather API: temperature, humidity, rainfall
-  Engineered:  NPK_total, NPK_ratio, Climate_score, Temp_humidity_interaction, Soil_quality_score
+  Weather API: temperature, humidity, rainfall   ← all 3 now used in model
+  Engineered:  NPK_total, NPK_ratio, Climate_score,
+               Temp_humidity_interaction, Soil_quality_score
 """
 
 from __future__ import annotations
@@ -70,23 +71,22 @@ def _load_models() -> bool:
 
 
 # ─── Feature engineering ──────────────────────────────────────────────────────
-# NOTE: Must match train_models.py EXACTLY — same features, same names, same order.
-# Current models were trained WITH humidity (estimated in training).
-# After retraining without humidity, remove humidity from here too.
+# Must match train_models.py EXACTLY — same 15 features, same names, same order.
+# V2 dataset includes humidity → now used as a model feature.
 
 def _build_features(
     nitrogen:    float,
     phosphorus:  float,
     potassium:   float,
-    temperature: float,
-    humidity:    float,    # ← from Weather API (real value at inference)
+    temperature: float,   # from Weather API
+    humidity:    float,   # from Weather API — now a model feature in V2
     ph:          float,
-    rainfall:    float,
+    rainfall:    float,   # from Weather API
     district:    int,
     season:      int,
     area:        float,
 ) -> dict:
-    """Build base + engineered features. Must match train_models.py exactly."""
+    """Build 15 features matching train_models.py exactly."""
     NPK_total                 = nitrogen + phosphorus + potassium
     NPK_ratio                 = nitrogen / (phosphorus + potassium + 1e-6)
     Climate_score             = 0.5 * temperature + 0.5 * (rainfall / 100.0)
@@ -157,7 +157,7 @@ def predict_yield(
     district:    int,
     season:      int,
     temperature: Optional[float] = None,
-    humidity:    Optional[float] = None,
+    humidity:    Optional[float] = None,   # now passed to model
     rainfall:    Optional[float] = None,
 ) -> PredictResponse:
     """
@@ -165,10 +165,10 @@ def predict_yield(
 
     Workflow:
       1. Use temperature/humidity/rainfall from frontend (Weather API).
-         Only fetch from weather service if values not provided.
-      2. Build features (base + engineered) for crop classification.
+         All three are now model features in V2.
+      2. Build 15 features (base + engineered) for crop classification.
       3. Predict crop using crop_model pipeline (includes StandardScaler).
-      4. Build yield features (crop features + crop_encoded).
+      4. Build 16 features (crop features + crop_encoded) for yield regression.
       5. Predict yield using yield_model + scaler_yield.
       6. Reverse log-transform: actual_yield = expm1(log_yield).
       7. Return crop, confidence, top-3, yield, model accuracy.
@@ -176,19 +176,16 @@ def predict_yield(
     models_ok = _load_models()
 
     # ── Step 1: Resolve weather values ───────────────────────────────────────
-    if temperature is None or rainfall is None:
+    if temperature is None or humidity is None or rainfall is None:
         try:
             weather     = get_weather(location)
-            temperature = temperature or weather.temperature or 25.0
-            humidity    = humidity    or weather.humidity    or 70.0
-            rainfall    = rainfall    or weather.rainfall    or 500.0
+            temperature = temperature if temperature is not None else (weather.temperature or 25.0)
+            humidity    = humidity    if humidity    is not None else (weather.humidity    or 60.0)
+            rainfall    = rainfall    if rainfall    is not None else (weather.rainfall    or 500.0)
         except Exception:
             temperature = temperature or 25.0
-            humidity    = humidity    or 70.0
+            humidity    = humidity    or 60.0
             rainfall    = rainfall    or 500.0
-    else:
-        # Frontend already sent weather values — use directly
-        humidity = humidity if humidity is not None else 70.0
 
     logger.info(
         "Weather → temp=%.1f  humidity=%.1f  rainfall=%.1f",
