@@ -126,6 +126,24 @@ class DiseaseResponse(BaseModel):
 
 # ─── POST /api/recommend ─────────────────────────────────────────────────────
 
+class SoilInputRecommend(BaseModel):
+    """Simplified soil input for /api/recommend endpoint.
+    
+    Only requires the 5 fields that get_recommendations() actually uses.
+    No district, season, area, or weather fields needed.
+    """
+    location:    str   = Field(..., example="Pune",
+                              description="City or region name")
+    nitrogen:    float = Field(..., ge=20,   le=150, example=90,
+                              description="Nitrogen content in kg/ha (20–150)")
+    phosphorus:  float = Field(..., ge=10,   le=90,  example=42,
+                              description="Phosphorus content in kg/ha (10–90)")
+    potassium:   float = Field(..., ge=5,    le=150, example=43,
+                              description="Potassium content in kg/ha (5–150)")
+    ph:          float = Field(..., ge=5.5,  le=8.5, example=6.5,
+                              description="Soil pH level (5.5–8.5)")
+
+
 class FertilizerDetail(BaseModel):
     primary:      str
     amount:       str
