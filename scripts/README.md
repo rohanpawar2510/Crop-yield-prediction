@@ -14,7 +14,7 @@ and produces `Crop_recommendation.csv` — the file required by
 
 | Step | Action |
 |------|--------|
-| 1 | Reads `notebooks/Crop_Final_Updated.csv` (or `Crop_Final_Updated (1).csv`) |
+| 1 | Reads `notebooks/Final_Agriculture_Dataset_V2.csv` |
 | 2 | Maps each Maharashtra district code (25–60) to a city name |
 | 3 | Fetches real-time humidity from the **OpenWeather API** (free tier) with caching and rate limiting |
 | 4 | Falls back to an estimation formula (`rainfall + temperature → humidity`) for any API failures or when no API key is provided |
@@ -310,5 +310,5 @@ python data_analysis_report.py --input notebooks/Crop_recommendation_final.csv
 
 # Step 5 — Train final optimised models
 cd ../backend
-python train_models_final.py
+python train_models.py
 ```
