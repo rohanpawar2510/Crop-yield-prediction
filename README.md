@@ -60,7 +60,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 #### Train ML Models
 
-The **single authoritative dataset** is `notebooks/Crop_Final_Updated (1).csv`.
+The **single authoritative dataset** is `notebooks/Final_Agriculture_Dataset_V2.csv`.
 Pre-trained model files are included in `backend/models/`. To retrain them:
 
 ```bash
@@ -70,7 +70,7 @@ python train_models.py
 ```
 
 This canonical script:
-- Reads `notebooks/Crop_Final_Updated (1).csv` — fails with a clear error if missing
+- Reads `notebooks/Final_Agriculture_Dataset_V2.csv` — fails with a clear error if missing
 - Estimates humidity from temperature and rainfall (no extra data step needed)
 - Removes ambiguous data rows and rare crops, balances the dataset
 - Adds five engineered features (NPK totals, climate score, etc.)
@@ -104,12 +104,12 @@ For even deeper control over the cleaning pipeline:
 ```bash
 # Step 1 — Run aggressive 8-step data cleaning
 python scripts/ultimate_data_cleaner.py
-# Input:  notebooks/Crop_Final_Updated (1).csv  (single source)
+# Input:  notebooks/Final_Agriculture_Dataset_V2.csv  (single source)
 # Output: notebooks/Crop_recommendation_final.csv (~8,000–12,000 rows)
 
 # Step 2 — Train optimized models on the cleaned dataset
 cd backend
-python train_models_final.py
+python train_models.py
 ```
 
 #### Start the Backend Server
@@ -152,13 +152,11 @@ Crop-yield-prediction/
 │   ├── data_analysis_report.py        # Comprehensive data quality & analysis report
 │   └── README.md                      # Script documentation
 ├── notebooks/
-│   └── Crop_Final_Updated (1).csv     # Single authoritative source dataset
+│   └── Final_Agriculture_Dataset_V2.csv     # Single authoritative source dataset
 ├── backend/
 │   ├── main.py                  # FastAPI application entry point
 │   ├── config.py                # Environment and app configuration
 │   ├── train_models.py          # ← CANONICAL training script (use this)
-│   ├── train_models_improved.py # Improved pipeline (requires generated CSV)
-│   ├── train_models_final.py    # Maximum accuracy pipeline
 │   ├── requirements.txt         # Python dependencies
 │   ├── .env.example             # Example environment variables
 │   ├── models/                  # Trained model artefacts
@@ -168,20 +166,7 @@ Crop-yield-prediction/
 │   │   ├── scaler_yield.pkl     # Yield feature scaler
 │   │   ├── feature_cols.pkl     # Feature column metadata
 │   │   └── metadata.json        # Training metrics
-│   ├── ml_models/
-│   │   ├── prepare_dataset.py   # Alternative dataset preparation
-│   │   ├── train_model.py       # Alternative training script
-│   │   └── predict_with_model.py# Inference class (CropPredictor)
-│   ├── routes/
-│   │   ├── predict.py           # POST /api/predict
-│   │   ├── weather.py           # GET  /api/weather
-│   │   ├── disease.py           # POST /api/detect-disease
-│   │   └── recommend.py         # POST /api/recommend
-│   └── services/
-│       ├── prediction_service.py
-│       ├── weather_service.py
-│       ├── disease_service.py
-│       └── recommendation_service.py
+│   └── .gitignore
 └── frontend/
     ├── index.html
     ├── package.json
@@ -214,4 +199,4 @@ Crop-yield-prediction/
 | Weather returns mock data | Add a valid `OPENWEATHER_API_KEY` to `backend/.env` |
 | Recommendations return fallback data | Add a valid `GEMINI_API_KEY` to `backend/.env` |
 | Port already in use | Change the port: backend via `PORT` in `.env`, frontend in `vite.config.js` |
-| `Dataset not found` on training | Ensure `notebooks/Crop_Final_Updated (1).csv` exists in the repository |
+| `Dataset not found` on training | Ensure `notebooks/Final_Agriculture_Dataset_V2.csv` exists in the repository |
