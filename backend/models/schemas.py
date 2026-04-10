@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-# ─── District name → encoded ID mapping ──────────────────────────────────────
+# ─── District name → encoded ID ──────────────────────────────────────────────
 
 DISTRICT_MAP: dict[str, int] = {
     "Ahmednagar": 0,  "Akola": 1,       "Amravati": 2,    "Aurangabad": 3,
@@ -22,7 +22,7 @@ DISTRICT_MAP: dict[str, int] = {
     "Wardha": 33,     "Washim": 34,     "Yavatmal": 35,
 }
 
-# ─── Season name → encoded ID mapping ────────────────────────────────────────
+# ─── Season name → encoded ID ─────────────────────────────────────────────────
 
 SEASON_MAP: dict[str, int] = {
     "Kharif (June – Oct)": 1,
@@ -31,67 +31,81 @@ SEASON_MAP: dict[str, int] = {
     "Annual":              4,
 }
 
+# ─── Irrigation type → encoded ID ─────────────────────────────────────────────
+
+IRRIGATION_MAP: dict[str, int] = {
+    "Rainfed":   0,
+    "Canal":     1,
+    "Drip":      2,
+    "Flood":     3,
+    "Sprinkler": 4,
+}
+
+# ─── Soil type → encoded ID ───────────────────────────────────────────────────
+
+SOIL_MAP: dict[str, int] = {
+    "Black":    0,
+    "Alluvial": 1,
+    "Sandy":    2,
+    "Loamy":    3,
+    "Clayey":   4,
+}
+
 
 # ─── Shared request body ──────────────────────────────────────────────────────
 
 class SoilInput(BaseModel):
-    """Soil / location / season data submitted by the user."""
+    """Soil / location / season / irrigation data submitted by the user."""
 
-    # ── Location & season (user selects from dropdown) ──
-    location:   str = Field(default="Unknown",  example="Pune")
+    # ── Location & season ──
+    location:   str = Field(default="Unknown", example="Pune")
     district:   int = Field(..., ge=0,  le=35,  example=25,
-                            description="Encoded district ID (0–35). Use DISTRICT_MAP to convert name.")
+                            description="Encoded district ID (0–35)")
     season:     int = Field(..., ge=1,  le=4,   example=1,
                             description="1=Kharif, 2=Rabi, 3=Zaid, 4=Annual")
 
-    # ── Soil nutrients (user enters manually) ──
-    nitrogen:   float = Field(..., ge=20,  le=150,    example=90,
-                              description="Nitrogen content in kg/ha (20–150)")
-    phosphorus: float = Field(..., ge=10,  le=90,     example=42,
-                              description="Phosphorus content in kg/ha (10–90)")
-    potassium:  float = Field(..., ge=5,   le=150,    example=43,
-                              description="Potassium content in kg/ha (5–150)")
-    ph:         float = Field(..., ge=5.5, le=8.5,    example=6.5,
-                              description="Soil pH level (5.5–8.5)")
-    area:       float = Field(..., ge=2,   le=416127, example=15000,
-                              description="Cultivated area in hectares (2–416127)")
+    # ── Soil nutrients ──
+    nitrogen:   float = Field(..., ge=20,  le=150,    example=90)
+    phosphorus: float = Field(..., ge=10,  le=90,     example=42)
+    potassium:  float = Field(..., ge=5,   le=150,    example=43)
+    ph:         float = Field(..., ge=5.5, le=8.5,    example=6.5)
+    area:       float = Field(..., ge=2,   le=416127, example=15000)
 
-    # ── Weather values (auto-fetched from OpenWeather API, read-only in UI) ──
-    temperature: Optional[float] = Field(default=None, ge=10,  le=40,   example=37.3,
-                                         description="Temperature in °C — from Weather API")
-    humidity:    Optional[float] = Field(default=None, ge=0,   le=100,  example=22.0,
-                                         description="Humidity % — from Weather API (display only)")
-    rainfall:    Optional[float] = Field(default=None, ge=0,   le=1700, example=0.0,
-                                         description="Rainfall in mm — from Weather API")
+    # ── New yield model inputs ──
+    irrigation_type: int = Field(
+        default=0, ge=0, le=4, example=0,
+        description="0=Rainfed, 1=Canal, 2=Drip, 3=Flood, 4=Sprinkler"
+    )
+    soil_type: int = Field(
+        default=0, ge=0, le=4, example=0,
+        description="0=Black, 1=Alluvial, 2=Sandy, 3=Loamy, 4=Clayey"
+    )
+
+    # ── Weather (auto-fetched from OpenWeather API) ──
+    temperature: Optional[float] = Field(default=None, ge=10,  le=40,   example=37.3)
+    humidity:    Optional[float] = Field(default=None, ge=0,   le=100,  example=22.0)
+    rainfall:    Optional[float] = Field(default=None, ge=0,   le=2000, example=0.0)
 
 
 # ─── POST /api/predict ────────────────────────────────────────────────────────
 
 class CropPrediction(BaseModel):
-    """A single crop prediction entry with confidence score."""
     crop:       str
     confidence: float
 
 
 class PredictResponse(BaseModel):
-    """Full prediction response returned to frontend."""
-
-    # ── Location ──
-    location: str = Field(default="Unknown")
-
-    # ── Crop recommendation ──
-    crop:             str
-    recommended_crop: str
-    confidence:       float
+    location:          str              = Field(default="Unknown")
+    crop:              str
+    recommended_crop:  str
+    confidence:        float
     top_3_predictions: List[CropPrediction] = Field(default_factory=list)
     suitable_crops:    List[str]            = Field(default_factory=list)
     model_accuracy:    Optional[float]      = None
-
-    # ── Yield prediction ──
-    yield_:          float       = Field(default=0.0, alias="yield")
-    predicted_yield: float       = Field(default=0.0)
-    unit:            str         = Field(default="kg/hectare")   # ← fixed from tons/hectare
-    yield_comparison: List[float] = Field(default_factory=list)
+    yield_:            float       = Field(default=0.0, alias="yield")
+    predicted_yield:   float       = Field(default=0.0)
+    unit:              str         = Field(default="tons/hectare")
+    yield_comparison:  List[float] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True, "protected_namespaces": ()}
 
@@ -106,7 +120,7 @@ class WeatherResponse(BaseModel):
     wind_speed:  float
     description: str
     icon:        str
-    is_mock:     bool           = False
+    is_mock:     bool            = False
     feels_like:  Optional[float] = None
     pressure:    Optional[int]   = None
     visibility:  Optional[int]   = None
@@ -127,21 +141,11 @@ class DiseaseResponse(BaseModel):
 # ─── POST /api/recommend ─────────────────────────────────────────────────────
 
 class SoilInputRecommend(BaseModel):
-    """Simplified soil input for /api/recommend endpoint.
-    
-    Only requires the 5 fields that get_recommendations() actually uses.
-    No district, season, area, or weather fields needed.
-    """
-    location:    str   = Field(..., example="Pune",
-                              description="City or region name")
-    nitrogen:    float = Field(..., ge=20,   le=150, example=90,
-                              description="Nitrogen content in kg/ha (20–150)")
-    phosphorus:  float = Field(..., ge=10,   le=90,  example=42,
-                              description="Phosphorus content in kg/ha (10–90)")
-    potassium:   float = Field(..., ge=5,    le=150, example=43,
-                              description="Potassium content in kg/ha (5–150)")
-    ph:          float = Field(..., ge=5.5,  le=8.5, example=6.5,
-                              description="Soil pH level (5.5–8.5)")
+    location:   str   = Field(..., example="Pune")
+    nitrogen:   float = Field(..., ge=20,  le=150, example=90)
+    phosphorus: float = Field(..., ge=10,  le=90,  example=42)
+    potassium:  float = Field(..., ge=5,   le=150, example=43)
+    ph:         float = Field(..., ge=5.5, le=8.5, example=6.5)
 
 
 class FertilizerDetail(BaseModel):
