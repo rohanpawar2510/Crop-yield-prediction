@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, LayoutDashboard, Cloud, Leaf, Lightbulb, Bug } from 'lucide-react';
+import { Home, LayoutDashboard, Cloud, Leaf, Lightbulb, Bug, History } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Home', icon: Home },
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/predict', label: 'Predict', icon: Leaf },
   { to: '/recommend', label: 'Recommend', icon: Lightbulb },
   { to: '/disease', label: 'Disease', icon: Bug },
+  { to: '/history', label: 'History', icon: History },
 ];
 
 export default function Sidebar({ open, setOpen }) {

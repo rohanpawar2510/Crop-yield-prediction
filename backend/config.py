@@ -11,10 +11,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # External API keys (to be filled in .env for Phase 3 / Phase 5)
-OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "")
+OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "5fc967650745e795f964aeb1a74ff57c")
 OPENWEATHER_BASE_URL: str = "https://api.openweathermap.org/data/2.5/weather"
-GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6Ly7STyjo5u_V44YOGzXNBC8Io3_BPvuRf-kEESn38_bA")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
 # Plant.id API — used for real plant disease detection (Phase 4)
 # Sign up at https://app.plant.id/ to obtain a key.

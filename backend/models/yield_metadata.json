@@ -1,6 +1,7 @@
 {
-  "dataset": "notebooks\\Yield_Dataset_V1.csv",
-  "n_classes": 19,
+  "algorithm": "XGBRegressor (no crop_encoded \u2014 leakage fixed)",
+  "dataset": "Yield_Dataset_V1.csv",
+  "n_crops": 19,
   "crop_classes": [
     "BAJRA",
     "BANANA",
@@ -35,7 +36,7 @@
     "area",
     "irrigation_type",
     "soil_type",
-    "year",
+    "year_actual",
     "NPK_total",
     "NPK_ratio",
     "Climate_score",
@@ -43,14 +44,132 @@
     "Soil_quality_score",
     "rain_per_temp",
     "N_to_P_ratio",
-    "crop_encoded"
+    "irrigation_rainfall_interaction"
   ],
-  "cv_r2_mean": 0.9859,
-  "cv_r2_std": 0.0011,
-  "new_features": [
-    "irrigation_type",
-    "soil_type",
-    "year"
+  "cv_r2_mean": 0.9907,
+  "cv_r2_std": 0.001,
+  "best_iteration": 447,
+  "year_range": [
+    2010,
+    2023
   ],
-  "random_seed": 42
+  "year_note": "year_actual = raw_year + 2010",
+  "crop_yield_stats": {
+    "BAJRA": {
+      "mean": 0.0898,
+      "std": 0.0647,
+      "min": 0.0298,
+      "max": 0.237
+    },
+    "BANANA": {
+      "mean": 1.766,
+      "std": 0.4523,
+      "min": 0.2367,
+      "max": 2.5583
+    },
+    "BLACKGRAM": {
+      "mean": 0.3085,
+      "std": 0.2108,
+      "min": 0.0953,
+      "max": 0.7491
+    },
+    "COTTON": {
+      "mean": 0.3027,
+      "std": 0.0971,
+      "min": 0.0909,
+      "max": 0.3633
+    },
+    "GRAPES": {
+      "mean": 0.0514,
+      "std": 0.0389,
+      "min": 0.0145,
+      "max": 0.1978
+    },
+    "GROUNDNUT": {
+      "mean": 0.0981,
+      "std": 0.026,
+      "min": 0.0416,
+      "max": 0.1478
+    },
+    "JOWAR": {
+      "mean": 0.1186,
+      "std": 0.0694,
+      "min": 0.023,
+      "max": 0.237
+    },
+    "LENTIL": {
+      "mean": 0.2856,
+      "std": 0.204,
+      "min": 0.0953,
+      "max": 0.7491
+    },
+    "MAIZE": {
+      "mean": 0.1783,
+      "std": 0.0487,
+      "min": 0.0785,
+      "max": 0.283
+    },
+    "MOTHBEANS": {
+      "mean": 0.2686,
+      "std": 0.196,
+      "min": 0.0953,
+      "max": 0.7491
+    },
+    "NIGER SEED": {
+      "mean": 0.0246,
+      "std": 0.0277,
+      "min": 0.0099,
+      "max": 0.1501
+    },
+    "ONION": {
+      "mean": 0.6739,
+      "std": 0.2597,
+      "min": 0.1934,
+      "max": 1.1465
+    },
+    "POTATO": {
+      "mean": 0.2911,
+      "std": 0.203,
+      "min": 0.0953,
+      "max": 0.7491
+    },
+    "RICE": {
+      "mean": 0.1422,
+      "std": 0.0795,
+      "min": 0.0221,
+      "max": 0.2845
+    },
+    "SESAMUM": {
+      "mean": 0.0197,
+      "std": 0.0146,
+      "min": 0.0099,
+      "max": 0.0882
+    },
+    "SOYABEAN": {
+      "mean": 0.1111,
+      "std": 0.0293,
+      "min": 0.0725,
+      "max": 0.1978
+    },
+    "SUGARCANE": {
+      "mean": 2.128,
+      "std": 0.8171,
+      "min": 0.155,
+      "max": 2.5583
+    },
+    "TUR": {
+      "mean": 0.0531,
+      "std": 0.0257,
+      "min": 0.0299,
+      "max": 0.0975
+    },
+    "WHEAT": {
+      "mean": 0.13,
+      "std": 0.0567,
+      "min": 0.0833,
+      "max": 0.2665
+    }
+  },
+  "leakage_fix": "crop_encoded removed",
+  "yield_scale_note": "V1 scale: SUGARCANE~2.1, BANANA~1.7, RICE~0.14 t/ha"
 }

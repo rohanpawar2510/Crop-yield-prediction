@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Sprout, Menu, X } from 'lucide-react';
 import DarkModeToggle from './DarkModeToggle';
+import UserMenu from './UserMenu';
 
 export default function Navbar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
@@ -23,6 +24,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }) {
           </Link>
         </div>
         <DarkModeToggle />
+        <UserMenu />
       </div>
     </header>
   );

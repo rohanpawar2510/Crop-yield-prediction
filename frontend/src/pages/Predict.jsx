@@ -7,6 +7,7 @@ import SoilRadarChart from '../components/SoilRadarChart';
 import YieldComparisonChart from '../components/YieldComparisonChart';
 import FeatureImportanceChart from '../components/FeatureImportanceChart';
 import { predictCrop } from '../services/api';
+import PredictionHistoryBanner from '../components/PredictionHistoryBanner';
 
 export default function Predict() {
   const [result, setResult] = useState(null);
@@ -119,7 +120,9 @@ export default function Predict() {
                 suitable_crops={result.suitable_crops}
                 yield_comparison={result.yield_comparison}
                 predicted_crop={result.recommended_crop || result.crop || result.predicted_crop || result.prediction}
+                
               />
+              {result && <PredictionHistoryBanner />}
             </motion.div>
           </div>
           <motion.div
