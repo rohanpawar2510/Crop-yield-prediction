@@ -12,10 +12,9 @@ export default function Disease() {
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Disease Detection 🔬</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">Upload a plant image to detect diseases using AI</p>
       </div>
-      <div className="max-w-2xl">
-        <div className="card">
-          <DiseaseDetection />
-        </div>
+
+      <div className="card">
+        <DiseaseDetection />
       </div>
     </motion.div>
   );

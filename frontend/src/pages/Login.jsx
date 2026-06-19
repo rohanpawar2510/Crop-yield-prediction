@@ -40,7 +40,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-green-500/10 border border-green-500/20 mb-4">
             <Leaf size={32} className="text-green-400" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Smart Agriculture</h1>
+          <h1 className="text-3xl font-bold text-white">Smart Agri</h1>
           <p className="text-gray-400 mt-1">Sign in to your account</p>
         </div>
 

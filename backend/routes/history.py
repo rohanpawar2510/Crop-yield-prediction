@@ -146,14 +146,13 @@ class DiseaseDetail(DiseaseSummary):
 # ─── Stats Schema ─────────────────────────────────────────────────────────────
 
 class StatsResponse(BaseModel):
-    total_predictions: int
-    total_recommendations: int
-    most_predicted_crop: Optional[str]
-
-    avg_confidence: Optional[float]
-    avg_yield: Optional[float]
-
-    last_prediction_at: Optional[str]
+    total_predictions:        int
+    total_recommendations:    int
+    total_disease_detections: int           # ← separate from recommendations
+    most_predicted_crop:      Optional[str]
+    avg_confidence:           Optional[float]
+    avg_yield:                Optional[float]
+    last_prediction_at:       Optional[str]
 
 
 # ─── Prediction Endpoints ─────────────────────────────────────────────────────
@@ -482,43 +481,27 @@ def get_stats(
 
     if preds:
         crop_counts = {}
-
         for p in preds:
             crop_counts[p.recommended_crop] = (
                 crop_counts.get(p.recommended_crop, 0) + 1
             )
 
         most_predicted = max(crop_counts, key=crop_counts.get)
-
-        avg_conf = round(
-            sum(p.confidence for p in preds) / len(preds),
-            2
-        )
-
-        avg_yield = round(
-            sum(p.predicted_yield for p in preds) / len(preds),
-            4
-        )
-
-        last_at = max(
-            p.created_at for p in preds
-        ).isoformat()
-
+        avg_conf       = round(sum(p.confidence for p in preds) / len(preds), 2)
+        avg_yield      = round(sum(p.predicted_yield for p in preds) / len(preds), 4)
+        last_at        = max(p.created_at for p in preds).isoformat()
     else:
         most_predicted = None
-        avg_conf = None
-        avg_yield = None
-        last_at = None
+        avg_conf       = None
+        avg_yield      = None
+        last_at        = None
 
     return StatsResponse(
-        total_predictions=len(preds),
-
-        total_recommendations=len(recs) + len(diseases),
-
-        most_predicted_crop=most_predicted,
-
-        avg_confidence=avg_conf,
-        avg_yield=avg_yield,
-
-        last_prediction_at=last_at,
+        total_predictions        = len(preds),
+        total_recommendations    = len(recs),       # ← only AI recommendations
+        total_disease_detections = len(diseases),   # ← separate disease count
+        most_predicted_crop      = most_predicted,
+        avg_confidence           = avg_conf,
+        avg_yield                = avg_yield,
+        last_prediction_at       = last_at,
     )

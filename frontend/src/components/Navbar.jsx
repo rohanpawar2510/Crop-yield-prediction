@@ -20,11 +20,14 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }) {
             <div className="p-1.5 rounded-lg bg-primary text-white">
               <Sprout size={20} />
             </div>
-            <span className="hidden sm:inline">Smart Agriculture</span>
+            <span className="hidden sm:inline">Smart Agri</span>
           </Link>
         </div>
-        <DarkModeToggle />
-        <UserMenu />
+
+        <div className="flex items-center gap-2">
+          <DarkModeToggle />
+          <UserMenu />
+        </div>
       </div>
     </header>
   );

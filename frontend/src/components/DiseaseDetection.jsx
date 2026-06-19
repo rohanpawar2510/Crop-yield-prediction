@@ -9,11 +9,11 @@ import { detectDisease } from '../services/api';
 
 // ─── Severity config ──────────────────────────────────────────────────────────
 const SEVERITY = {
-  Severe:    { color: 'text-red-600 dark:text-red-400',    bg: 'bg-red-100 dark:bg-red-900/30',    bar: 'bg-red-500' },
+  Severe:    { color: 'text-red-600 dark:text-red-400',       bg: 'bg-red-100 dark:bg-red-900/30',       bar: 'bg-red-500'    },
   Moderate:  { color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', bar: 'bg-orange-500' },
   Mild:      { color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', bar: 'bg-yellow-500' },
-  Suspected: { color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-100 dark:bg-blue-900/30',   bar: 'bg-blue-500' },
-  None:      { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', bar: 'bg-green-500' },
+  Suspected: { color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-100 dark:bg-blue-900/30',     bar: 'bg-blue-500'   },
+  None:      { color: 'text-green-600 dark:text-green-400',   bg: 'bg-green-100 dark:bg-green-900/30',   bar: 'bg-green-500'  },
 };
 
 function getSeverity(s) {
@@ -82,7 +82,7 @@ export default function DiseaseDetection() {
           onClick={() => inputRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${
             dragging
-              ? 'border-primary bg-emerald-50 dark:bg-emerald-900/20 scale-[1.02]'
+              ? 'border-primary bg-emerald-50 dark:bg-emerald-900/20 scale-[1.01]'
               : 'border-gray-300 dark:border-gray-600 hover:border-primary hover:bg-gray-50 dark:hover:bg-gray-700/50'
           }`}
         >
@@ -94,29 +94,29 @@ export default function DiseaseDetection() {
           </p>
           <p className="text-sm text-gray-400 mt-2">PNG, JPG, WebP — max 5MB</p>
           <p className="text-xs text-gray-400 mt-1">
-            💡 Tip: Use a clear close-up image of the affected leaf for best results
+            💡 Use a clear close-up image of the affected leaf for best results
           </p>
         </div>
       )}
 
-      {/* ── Image Preview ── */}
+      {/* ── Image Preview — centered, fixed size, not full width ── */}
       {preview && (
-        <div className="space-y-4">
-          <div className="relative">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="relative w-full max-w-md">
             <img src={preview} alt="Upload preview"
-              className="w-full max-h-72 rounded-xl shadow-md object-contain bg-gray-50 dark:bg-gray-800" />
+              className="w-full max-h-80 rounded-xl shadow-md object-contain bg-gray-50 dark:bg-gray-800 mx-auto" />
             <button onClick={handleReset}
               className="absolute top-2 right-2 bg-white dark:bg-gray-800 rounded-full p-1.5 shadow-md hover:bg-red-50 dark:hover:bg-red-900/30">
               <X size={16} className="text-gray-500 hover:text-red-500" />
             </button>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full max-w-md">
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               onClick={handleAnalyze} disabled={loading}
               className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50">
               {loading
-                ? <><Loader2 size={18} className="animate-spin" /> Analyzing with Plant.id...</>
+                ? <><Loader2 size={18} className="animate-spin" /> Analyzing...</>
                 : <><Bug size={18} /> Detect Disease</>
               }
             </motion.button>
@@ -128,11 +128,11 @@ export default function DiseaseDetection() {
         </div>
       )}
 
-      {/* ── Results ── */}
+      {/* ── Results — FULL WIDTH below the image ── */}
       <AnimatePresence>
         {result && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            className="space-y-4">
+            className="space-y-5 w-full">
 
             {/* Mock warning */}
             {result.is_mock && (
@@ -142,9 +142,9 @@ export default function DiseaseDetection() {
               </div>
             )}
 
-            {/* ── Plant + Health Status ── */}
-            <div className="card">
-              <div className="flex items-center justify-between">
+            {/* Plant + Health Status */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <Leaf size={20} className="text-green-500" />
                   <div>
@@ -165,20 +165,19 @@ export default function DiseaseDetection() {
               </div>
             </div>
 
-            {/* ── Disease Detection ── */}
+            {/* Disease Detection — full width, 2-col internal layout */}
             {result.detected && (
-              <div className="card space-y-4">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
                   <Bug size={18} className="text-red-500" /> Disease Detected
                 </h3>
 
-                {/* Disease name */}
-                <div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.disease}</p>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Disease Name</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.disease}</p>
+                  </div>
 
-                {/* Confidence + Severity */}
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Confidence</p>
                     <div className="flex items-center gap-2">
@@ -195,17 +194,17 @@ export default function DiseaseDetection() {
                       </span>
                     </div>
                   </div>
+
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Severity</p>
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getSeverity(result.severity).bg} ${getSeverity(result.severity).color}`}>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getSeverity(result.severity).bg} ${getSeverity(result.severity).color}`}>
                       {result.severity}
                     </span>
                   </div>
                 </div>
 
-                {/* Affected area */}
                 {result.affected_area && result.affected_area !== '0%' && (
-                  <div>
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className="text-xs text-gray-500">Estimated Affected Area</p>
                     <p className="font-medium text-gray-800 dark:text-gray-200">{result.affected_area}</p>
                   </div>
@@ -213,9 +212,9 @@ export default function DiseaseDetection() {
               </div>
             )}
 
-            {/* ── No Disease ── */}
+            {/* No Disease */}
             {!result.detected && (
-              <div className="card text-center py-6">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 text-center py-8">
                 <CheckCircle2 size={48} className="mx-auto mb-3 text-green-500" />
                 <p className="text-xl font-bold text-green-600 dark:text-green-400">Plant is Healthy!</p>
                 <p className="text-gray-500 text-sm mt-1">No disease detected. Continue regular monitoring.</p>
@@ -225,40 +224,36 @@ export default function DiseaseDetection() {
               </div>
             )}
 
-            {/* ── Treatment Cards ── */}
+            {/* Treatment Cards — full width, 3 columns */}
             {result.detected && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-                {/* Chemical */}
                 {result.chemical_treatment && (
                   <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <FlaskConical size={16} className="text-red-500" />
                       <p className="text-sm font-semibold text-red-700 dark:text-red-400">Chemical</p>
                     </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{result.chemical_treatment}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{result.chemical_treatment}</p>
                   </div>
                 )}
 
-                {/* Biological */}
                 {result.biological_treatment && (
                   <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Leaf size={16} className="text-green-500" />
                       <p className="text-sm font-semibold text-green-700 dark:text-green-400">Biological</p>
                     </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{result.biological_treatment}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{result.biological_treatment}</p>
                   </div>
                 )}
 
-                {/* Prevention */}
                 {result.prevention && (
                   <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Shield size={16} className="text-blue-500" />
                       <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Prevention</p>
                     </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{result.prevention}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{result.prevention}</p>
                   </div>
                 )}
               </div>
@@ -266,24 +261,24 @@ export default function DiseaseDetection() {
 
             {/* General treatment fallback */}
             {result.detected && result.treatment && !result.chemical_treatment && (
-              <div className="card">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Treatment</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">{result.treatment}</p>
               </div>
             )}
 
-            {/* ── All Diseases ── */}
+            {/* All Diseases */}
             {result.all_diseases?.length > 0 && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">
-                  📊 All Detected Conditions
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
+                  All Detected Conditions
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {result.all_diseases.map((d, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <span className="text-xs text-gray-400 w-4">{i + 1}</span>
                       <div className="flex-1">
-                        <div className="flex justify-between mb-0.5">
+                        <div className="flex justify-between mb-1">
                           <span className="text-sm text-gray-700 dark:text-gray-300">{d.name}</span>
                           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                             {d.probability}%
@@ -302,7 +297,7 @@ export default function DiseaseDetection() {
               </div>
             )}
 
-            {/* ── Try Another ── */}
+            {/* Try Another */}
             <button onClick={handleReset}
               className="w-full py-3 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors">
               <RefreshCw size={16} /> Try Another Image
