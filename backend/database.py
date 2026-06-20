@@ -1,27 +1,24 @@
 """
-database.py — SQLAlchemy database engine for MySQL.
+database.py — SQLAlchemy database engine for MySQL / TiDB Cloud.
 """
 
 from __future__ import annotations
 
 import os
-from urllib.parse import quote_plus  # ✅ ADDED (IMPORTANT FIX)
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Build MySQL URL from .env variables ───────────────────────────────────────
+# ── Build DB URL from environment variables ──────────────────────────────
+
 _HOST = os.getenv("DB_HOST", "localhost")
 _PORT = os.getenv("DB_PORT", "3306")
 _USER = os.getenv("DB_USER", "root")
-
-# ✅ FIX: encode password to handle special characters like @
-_PASS = quote_plus(os.getenv("DB_PASSWORD", "Rohan@2510"))
-
+_PASS = quote_plus(os.getenv("DB_PASSWORD", ""))
 _NAME = os.getenv("DB_NAME", "crop_yield_db")
 
 DATABASE_URL = os.getenv(
@@ -29,7 +26,8 @@ DATABASE_URL = os.getenv(
     f"mysql+pymysql://{_USER}:{_PASS}@{_HOST}:{_PORT}/{_NAME}?charset=utf8mb4"
 )
 
-# ── Engine ────────────────────────────────────────────────────────────────────
+# ── Engine (TiDB SSL Support) ────────────────────────────────────────────
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
@@ -37,16 +35,28 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
     echo=False,
+    connect_args={
+        "ssl": {
+            "ssl_verify_cert": False,
+            "ssl_verify_identity": False,
+        }
+    },
 )
 
-# ── Session factory ───────────────────────────────────────────────────────────
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# ── Session Factory ──────────────────────────────────────────────────────
 
-# ── Base class ────────────────────────────────────────────────────────────────
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+# ── Base Class ───────────────────────────────────────────────────────────
+
 Base = declarative_base()
 
+# ── Dependency ───────────────────────────────────────────────────────────
 
-# ── FastAPI dependency ────────────────────────────────────────────────────────
 def get_db():
     db = SessionLocal()
     try:
@@ -54,13 +64,14 @@ def get_db():
     finally:
         db.close()
 
+# ── Initialize Database ──────────────────────────────────────────────────
 
 def init_db():
-    from models import db_models  # noqa: F401
+    from models import db_models
+
     Base.metadata.create_all(bind=engine)
 
-    # Verify connection
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
 
-    print(f"✅ MySQL connected — database: {_NAME} @ {_HOST}:{_PORT}")
+    print(f"✅ Database connected: {_NAME} @ {_HOST}:{_PORT}")
