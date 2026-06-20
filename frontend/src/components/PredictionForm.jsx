@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, CloudRain, Thermometer, Droplets, Wind } from 'lucide-react';
+import { getWeather } from '../services/api';
 
 // ─── District → encoded ID ────────────────────────────────────────────────────
 const DISTRICT_MAP = {
@@ -63,9 +64,8 @@ export default function PredictionForm({ onSubmit, loading }) {
       setWeatherLoading(true);
       setWeatherError('');
       try {
-        const res  = await fetch(`/api/weather?location=${encodeURIComponent(values.district)}`);
-        if (!res.ok) throw new Error('Weather fetch failed');
-        const data = await res.json();
+        const res = await getWeather(values.district);
+        const data = res.data;
         setWeather({
           temperature: data.temperature ?? data.temp ?? '',
           humidity:    data.humidity    ?? '',
