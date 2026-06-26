@@ -1,10 +1,15 @@
 """
 recommendation_service.py — Farming recommendations via Gemini AI.
 
-MODEL:    gemini-2.5-flash  (latest, free tier: 10 RPM, 500 RPD)
+MODEL:    gemini-3.5-flash
 SDK:      google-genai  (pip install google-genai)
 STRATEGY: response_schema (structured JSON output) — no truncation issues
 FALLBACK: rule-based NPK gap analysis if Gemini fails / quota exceeded
+
+NOTE: NPK status is now determined by Gemini itself (agronomic reasoning),
+      not overridden by the backend's rule-based _npk_status(). The
+      rule-based _npk_status() is kept only for use inside _fallback(),
+      i.e. when Gemini is unavailable.
 """
 
 from __future__ import annotations
@@ -16,7 +21,7 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# ─── NPK requirements per crop ────────────────────────────────────────────────
+# ─── NPK requirements per crop (used ONLY by the rule-based fallback) ────────
 
 _CROP_NPK = {
     "SUGARCANE": {"n": 250, "p": 100, "k": 150},
@@ -65,9 +70,9 @@ _RESPONSE_SCHEMA = {
                     "required": ["current", "required", "status", "gap"],
                     "properties": {
                         "current":  {"type": "number"},
-                        "required": {"type": "integer"},
+                        "required": {"type": "number"},
                         "status":   {"type": "string"},
-                        "gap":      {"type": "integer"}
+                        "gap":      {"type": "number"}
                     }
                 },
                 "phosphorus": {
@@ -75,9 +80,9 @@ _RESPONSE_SCHEMA = {
                     "required": ["current", "required", "status", "gap"],
                     "properties": {
                         "current":  {"type": "number"},
-                        "required": {"type": "integer"},
+                        "required": {"type": "number"},
                         "status":   {"type": "string"},
-                        "gap":      {"type": "integer"}
+                        "gap":      {"type": "number"}
                     }
                 },
                 "potassium":  {
@@ -85,9 +90,9 @@ _RESPONSE_SCHEMA = {
                     "required": ["current", "required", "status", "gap"],
                     "properties": {
                         "current":  {"type": "number"},
-                        "required": {"type": "integer"},
+                        "required": {"type": "number"},
                         "status":   {"type": "string"},
-                        "gap":      {"type": "integer"}
+                        "gap":      {"type": "number"}
                     }
                 },
             }
@@ -167,6 +172,7 @@ _RESPONSE_SCHEMA = {
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _npk_status(crop: str, n: float, p: float, k: float) -> dict:
+    """Rule-based NPK status — used ONLY inside _fallback() now."""
     req = _CROP_NPK.get(crop.upper(), _CROP_NPK["DEFAULT"])
 
     def status(current, required):
@@ -202,6 +208,11 @@ def _safe_dict(v: Any, default=None) -> dict:
 # ─── Fallback: rule-based ─────────────────────────────────────────────────────
 
 def _fallback(crop: str, n: float, p: float, k: float, area: float) -> dict:
+    """
+    Used ONLY when Gemini is unavailable (no API key, 404, exhausted
+    retries, invalid JSON, etc). This is the one place _CROP_NPK and
+    _npk_status() are still used as the source of truth.
+    """
     req   = _CROP_NPK.get(crop.upper(), _CROP_NPK["DEFAULT"])
     n_gap = max(0, req["n"] - n)
     p_gap = max(0, req["p"] - p)
@@ -317,7 +328,15 @@ Instructions:
   DAP ₹27/kg
   MOP ₹15/kg
   SSP ₹13/kg
-- NPK status must reflect actual soil values."""
+- Analyze the current soil nutrient levels (Nitrogen, Phosphorus, Potassium)
+  based on the crop, season, soil type, and agricultural best practices.
+  For each nutrient:
+  - Determine whether it is Deficient, Optimal, or Excess.
+  - Base the decision on the crop, season, soil type and the current soil
+    values provided above — do not assume nutrients are deficient by default.
+  - Return a realistic required value and a realistic gap (required − current,
+    floored at 0) for each nutrient.
+  - Return the complete npk_status object in the JSON response."""
 
     response = client.models.generate_content(
         model="gemini-3.5-flash",
@@ -336,8 +355,6 @@ Instructions:
     print("========================\n")
 
     return json.loads(response.text)
-
-    
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -359,8 +376,10 @@ def get_recommendations(
 ) -> dict:
     """
     Returns recommendation dict.
-    Tries Gemini 2.5 Flash with structured output (response_schema).
-    Falls back to rule-based NPK analysis on any failure.
+    Tries Gemini 3.5 Flash with structured output (response_schema).
+    Gemini determines NPK status itself (agronomic reasoning) — the
+    backend no longer overrides it with the rule-based calculation.
+    Falls back to rule-based NPK analysis only on any failure.
     """
     import config
 
@@ -384,15 +403,23 @@ def get_recommendations(
 
             logger.info("✅ Gemini structured output OK — crop=%s", crop)
 
-            # Ensure npk_status is always populated (fallback to computed)
+            # Trust Gemini's NPK analysis.
+            # Only set an empty object if Gemini didn't return one at all —
+            # we do NOT recompute it via the rule-based _npk_status() here.
             if not _safe_dict(data.get("npk_status")):
-                data["npk_status"] = _npk_status(crop, nitrogen, phosphorus, potassium)
+                logger.warning("Gemini returned no npk_status — using rule-based fallback")
+                return _fallback(
+                        crop,
+                        nitrogen,
+                        phosphorus,
+                        potassium,
+                        area,
+                    )
 
             return {
                 "soil_health_score":    _safe_int(data.get("soil_health_score"), 70),
                 "soil_health_label":    _safe(data.get("soil_health_label"), "Good"),
-                "npk_status":           _safe_dict(data.get("npk_status"),
-                                            _npk_status(crop, nitrogen, phosphorus, potassium)),
+                "npk_status":           _safe_dict(data.get("npk_status"), {}),
                 "primary_fertilizer":   _safe_dict(data.get("primary_fertilizer"), {}),
                 "secondary_fertilizer": _safe_dict(data.get("secondary_fertilizer"), {}),
                 "micronutrients":       _safe_list(data.get("micronutrients"), []),
